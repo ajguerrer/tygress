@@ -1,13 +1,21 @@
 #![allow(unsafe_code)]
 
-//! Access to physical networking interfaces.
+//! An interface to physical networking hardware.
 //!
-//! `netdev` offers the [`NetDev`] trait for working with arbitrary networking hardware capable of
-//! transmitting and receiving raw network data. If the `netdev` feature is enabled, some
-//! OS-specific devices are provided:
+//! This module contains the [`NetDev`] trait. [`NetDev`] can be configured to work at the Data Link
+//! layer or Network layer. Any hardware abstraction that can send and receive either EthernetII
+//! frames or IP packets can be an implemented as a [`NetDev`].
+//!
+//! Once a [`NetDev`] is fed to the `tygress` executor, the executor multiplexes data between the
+//! [`NetDev`] and any open sockets.
+//!
+//! If the `netdev` feature is enabled, some OS-specific [`NetDev`]s for Unix are provided,
+//! including:
 //!
 //! - [`TunTapInterface`] - A [`NetDev`] for the [TUN/TAP][tuntap] device driver.
-//! - [`PacketSocket`] - A [`NetDev`] for the [packet][packet] socket family.
+//! - [`PacketSocket`] - A [`NetDev`] for the [packet] socket family.
+//!
+//! Feel free to use these [`NetDev`]s as references for your own implementations.
 //!
 //! [tuntap]: https://www.kernel.org/doc/html/latest/networking/tuntap.html
 //! [packet]: https://man7.org/linux/man-pages/man7/packet.7.html

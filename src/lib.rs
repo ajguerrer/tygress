@@ -6,7 +6,7 @@
 //! Tygress is a learning project and not meant for use in production. While the primary goal is
 //! correctness, Operating Systems and [The Rust Standard Library][std] offer far more robust
 //! [networking primitives][net]. Use those instead. If you are interested in a embedded library,
-//! take a look at [smoltcp][smoltcp]. It was used heavily as a reference.
+//! take a look at [smoltcp]. It was used heavily as a reference.
 //!
 //! A secondary goal of Tygress is `#![no_std]`. Everything is BYOB (Bring Your Own Buffers). The
 //! sole exception to this rule, are a couple [NetDev][`netdev::NetDev`] implementations since they
@@ -17,5 +17,5 @@
 //! [smoltcp]: https://docs.rs/smoltcp/latest/smoltcp/
 
 pub mod error;
+pub mod header;
 pub mod netdev;
-pub mod parse;
