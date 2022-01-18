@@ -4,7 +4,7 @@
 use core::fmt;
 
 use super::primitive::{U16, U8};
-use super::{as_header, Dscp, Ecn, Protocol, ProtocolRepr, Version};
+use super::{as_header, verify_checksum, Dscp, Ecn, Protocol, ProtocolRepr, Version};
 use crate::error::{Error, Result};
 
 /// An IPv4 header. [Read more][RFC 791]
@@ -158,25 +158,6 @@ impl fmt::Display for Ipv4 {
             "IPv4 proto: {}, src: {}, dst: {}, len: {}, ttl: {}, flags: {}, dscp: {}, ecn: {}, id: {}, offset: {}",
             self.protocol(), self.source(), self.destination(), self.total_len(), self.ttl(), self.flags(), self.dscp(), self.ecn(), self.id(), self.frag_offset()
         )
-    }
-}
-
-// Subdivides all bytes in header, including checksum and options, into 16-bit words, and adds them
-// up with ones' complement addition. A valid computed checksum equals 0.
-#[inline]
-pub fn verify_checksum(bytes: &[u8]) -> Result<()> {
-    let sum: u32 = bytes
-        .chunks_exact(2)
-        // chunks_exact(2) always maps to arrays of 2 bytes as a slice so the conversion should
-        // never fail.
-        .map(|bytes| u32::from(u16::from_be_bytes(bytes.try_into().unwrap())))
-        .sum();
-    let low = sum as u16;
-    let high = (sum >> 16) as u16;
-    if !(high + low) == 0 {
-        Ok(())
-    } else {
-        Err(Error::Malformed)
     }
 }
 

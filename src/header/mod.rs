@@ -15,10 +15,12 @@ mod ethernet;
 mod ip;
 mod ipv4;
 pub(crate) mod primitive;
+mod udp;
 
 pub use ethernet::*;
 pub use ip::*;
 pub use ipv4::*;
+pub use udp::*;
 // Each header type must uphold a set of invariants in order to soundly cast between it and a slice
 // of bytes. Invariants include:
 //
@@ -70,3 +72,24 @@ macro_rules! as_header {
 
 pub(crate) use as_header;
 use validate_header;
+
+use super::error::{Error, Result};
+
+// Subdivides all bytes in header into 16-bit words, and adds them up with ones' complement
+// addition. A valid computed checksum equals 0.
+#[inline]
+pub fn verify_checksum(bytes: &[u8]) -> Result<()> {
+    let sum: u32 = bytes
+        .chunks_exact(2)
+        // chunks_exact(2) always maps to arrays of 2 bytes as a slice so the conversion should
+        // never fail.
+        .map(|bytes| u32::from(u16::from_be_bytes(bytes.try_into().unwrap())))
+        .sum();
+    let low = sum as u16;
+    let high = (sum >> 16) as u16;
+    if !(high + low) == 0 {
+        Ok(())
+    } else {
+        Err(Error::Malformed)
+    }
+}
