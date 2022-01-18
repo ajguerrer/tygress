@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "1.0"
 nix = { version = "0.23", optional = true }
 
 [build-dependencies]
@@ -22,3 +21,6 @@ inline_never = []
 
 [[example]]
 name = "bench"
+
+[[example]]
+name = "playground"

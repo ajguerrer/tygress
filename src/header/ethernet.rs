@@ -1,39 +1,53 @@
-use core::fmt::{self, Debug};
+//! [`EthernetII`] header
+//!
+//! [`EthernetII`] header with source and destination [`EtherAddr`]s and a [`EtherType`].
+use core::fmt;
 
-use super::{as_header, as_header_mut};
+use super::as_header;
 use crate::error::{Error, Result};
 
 /// An EthernetII frame header. [Read more][RFC 1042]
 ///
-/// Contains six-octet source and destination MAC addresses with an EtherType indicating the
-/// protocol contained in the payload of the frame. The optional 802.1Q tag is not included.
+/// Contains 48-bit source and destination MAC addresses with an EtherType indicating the protocol
+/// contained in the payload of the frame. The optional 802.1Q tag is not included.
 ///
 /// [RFC 1042]: https://tools.ietf.org/html/rfc1042
-#[derive(Debug, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[repr(C)]
 pub struct EthernetII {
-    pub destination: EtherAddr,
-    pub source: EtherAddr,
-    pub ethertype: EtherTypeRepr,
+    dst: EtherAddr,
+    src: EtherAddr,
+    ty: EtherTypeRepr,
 }
 
 impl EthernetII {
-    /// Parse bytes as an immutable view of an Ethernet header followed by a payload. Returns an
+    /// Returns an immutable view of `bytes` as an EthernetII header followed by a payload or an
     /// error if the size or contents do not represent a valid EthernetII header.
     #[inline]
     pub fn split_header(bytes: &[u8]) -> Result<(&Self, &[u8])> {
         let (header, payload) = as_header!(EthernetII, bytes)?;
-        EtherTypeRepr::parse(header.ethertype.0)?;
+
+        header.ty.check()?;
+
         Ok((header, payload))
     }
 
-    /// Parse bytes as an mutable view of an Ethernet header followed by a payload. Returns an error
-    /// if the size or contents do not represent a valid EthernetII header.
+    /// Returns the source Ethernet address.
     #[inline]
-    pub fn split_header_mut(bytes: &mut [u8]) -> Result<(&mut Self, &mut [u8])> {
-        let (header, payload) = as_header_mut!(EthernetII, bytes)?;
-        EtherTypeRepr::parse(header.ethertype.0)?;
-        Ok((header, payload))
+    pub fn source(&self) -> EtherAddr {
+        self.src
+    }
+
+    /// Returns destination Ethernet address.
+    #[inline]
+    pub fn destination(&self) -> EtherAddr {
+        self.dst
+    }
+
+    /// Returns the EtherType of frame.
+    #[inline]
+    pub fn ethertype(&self) -> EtherType {
+        self.ty.get()
     }
 }
 
@@ -42,23 +56,26 @@ impl fmt::Display for EthernetII {
         write!(
             f,
             "EthernetII src: {}, dst: {}, type: {}",
-            self.source, self.destination, self.ethertype
+            self.src, self.dst, self.ty
         )
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-#[repr(transparent)]
-/// A six-octet Ethernet address.
+/// A 48-bit Ethernet address. [Read more][RFC 7042]
 ///
-/// Also known as a physical address or a MAC address.
+/// Commonly known as an Ethernet interface identifier or MAC address.
+///
+/// [RFC 7042]: https://tools.ietf.org/html/rfc7042#section-2
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[repr(transparent)]
 pub struct EtherAddr([u8; 6]);
 
 impl EtherAddr {
-    /// The broadcast EtherAddr. All network devices listen to frames sent to this address.
+    /// The broadcast EtherAddr. All nodes listen to frames sent to this address.
     pub const BROADCAST: EtherAddr = EtherAddr([0xFF; 6]);
 
     /// Create an EtherAddr from six network endian octets.
+    #[inline]
     pub fn new(bytes: [u8; 6]) -> Self {
         Self(bytes)
     }
@@ -69,19 +86,19 @@ impl EtherAddr {
         self.0.as_ref()
     }
 
-    /// EtherAddr is a individual unicast address.
+    /// Returns `true` if EtherAddr is a individual unicast address.
     #[inline]
     pub const fn is_unicast(&self) -> bool {
         self.0[0] & 0x01 == 0
     }
 
-    /// EtherAddr is a group multicast address.
+    /// Returns `true` if EtherAddr is a group multicast address.
     #[inline]
     pub const fn is_multicast(&self) -> bool {
         !self.is_unicast()
     }
 
-    /// EtherAddr is the broadcast address.
+    /// Returns `true` if EtherAddr is the 'broadcast' address.
     #[inline]
     pub const fn is_broadcast(&self) -> bool {
         self.0[0] == 0xFF
@@ -92,13 +109,13 @@ impl EtherAddr {
             && self.0[5] == 0xFF
     }
 
-    /// EtherAddr is universally administered.
+    /// Returns `true` if EtherAddr is universally administered.
     #[inline]
     pub const fn is_universal(&self) -> bool {
         self.0[0] & 0x02 == 0
     }
 
-    /// EtherAddr is locally administered.
+    /// Returns `true` if EtherAddr is locally administered.
     #[inline]
     pub const fn is_local(&self) -> bool {
         !self.is_universal()
@@ -116,11 +133,13 @@ impl fmt::Display for EtherAddr {
     }
 }
 
-/// The protocol used for the payload of an Ethernet frame.
+/// A list of Ethernet protocol parameters. [Read more][IANA]
 ///
-/// Value is network endian.
+/// The protocol used in the payload of an Ethernet frame. A complete list is maintained by [IANA].
+///
+/// [IANA]: https://www.iana.org/assignments/ieee-802-numbers/ieee-802-numbers.xhtml
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[repr(u16)]
 pub enum EtherType {
     Ipv4 = 0x0800,
@@ -129,34 +148,56 @@ pub enum EtherType {
 }
 
 impl From<EtherType> for u16 {
+    #[inline]
     fn from(val: EtherType) -> Self {
         val as u16
     }
 }
 
-/// A two-octet EtherType field.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+impl TryFrom<u16> for EtherType {
+    type Error = Error;
+
+    #[inline]
+    fn try_from(value: u16) -> Result<Self> {
+        match value {
+            value if value == Self::Ipv4 as u16 => Ok(Self::Ipv4),
+            value if value == Self::Arp as u16 => Ok(Self::Arp),
+            value if value == Self::Ipv6 as u16 => Ok(Self::Ipv6),
+            _ => Err(Error::Unsupported),
+        }
+    }
+}
+
+impl fmt::Display for EtherType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self, f)
+    }
+}
+
+/// An array representing [`EtherType`] cast from a slice of bytes instead of constructed. It is
+/// assumed that [`check`][EtherTypeRepr::check] is called directly after casting before any other
+/// methods are called.
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[repr(transparent)]
-pub struct EtherTypeRepr([u8; 2]);
+struct EtherTypeRepr([u8; 2]);
 
 impl EtherTypeRepr {
     const IPV4: EtherTypeRepr = EtherTypeRepr(u16::to_be_bytes(EtherType::Ipv4 as u16));
     const ARP: EtherTypeRepr = EtherTypeRepr(u16::to_be_bytes(EtherType::Arp as u16));
     const IPV6: EtherTypeRepr = EtherTypeRepr(u16::to_be_bytes(EtherType::Ipv6 as u16));
 
-    /// Parse bytes as a representation of an [`EtherType`]. Returns an error if the bytes do not
-    /// match a known EtherType.
+    /// Check inner self for validity.
     #[inline]
-    pub const fn parse(bytes: [u8; 2]) -> Result<Self> {
-        match EtherTypeRepr(bytes) {
-            Self::IPV4 | Self::ARP | Self::IPV6 => Ok(Self(bytes)),
-            _ => Err(Error::Unknown),
+    const fn check(&self) -> Result<()> {
+        match *self {
+            Self::IPV4 | Self::ARP | Self::IPV6 => Ok(()),
+            _ => Err(Error::Unsupported),
         }
     }
 
     /// Get the underlying [`EtherType`].
     #[inline]
-    pub const fn get(&self) -> EtherType {
+    const fn get(&self) -> EtherType {
         match *self {
             Self::IPV4 => EtherType::Ipv4,
             Self::ARP => EtherType::Arp,
@@ -166,14 +207,16 @@ impl EtherTypeRepr {
     }
 }
 
+impl From<EtherType> for EtherTypeRepr {
+    #[inline]
+    fn from(value: EtherType) -> Self {
+        EtherTypeRepr(u16::to_be_bytes(value as u16))
+    }
+}
+
 impl fmt::Display for EtherTypeRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Self::IPV4 => write!(f, "IPv4"),
-            Self::ARP => write!(f, "ARP"),
-            Self::IPV6 => write!(f, "IPv6"),
-            _ => unreachable!(),
-        }
+        fmt::Display::fmt(&self.get(), f)
     }
 }
 
@@ -185,33 +228,36 @@ mod tests {
 
     #[test]
     fn short_header() {
-        let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-        assert_eq!(EthernetII::split_header(&bytes).unwrap_err(), Error::Length);
+        let bytes = [0; 13];
+        assert_eq!(
+            EthernetII::split_header(&bytes).unwrap_err(),
+            Error::Truncated
+        );
     }
 
     #[test]
     fn invalid_ethertype() {
-        let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+        let bytes = [0; 14];
         assert_eq!(
             EthernetII::split_header(&bytes).unwrap_err(),
-            Error::Unknown
+            Error::Unsupported
         );
     }
 
     #[test]
     fn valid_ethertypes() {
         // ipv4
-        let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0x08, 0x00];
+        let bytes = [&[0; 12][..], &[0x08, 0x00][..]].concat();
         let (header, _) = EthernetII::split_header(&bytes).unwrap();
-        assert_eq!(header.ethertype.get(), EtherType::Ipv4);
+        assert_eq!(header.ethertype(), EtherType::Ipv4);
         // arp
-        let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0x08, 0x06];
+        let bytes = [&[0; 12][..], &[0x08, 0x06][..]].concat();
         let (header, _) = EthernetII::split_header(&bytes).unwrap();
-        assert_eq!(header.ethertype.get(), EtherType::Arp);
+        assert_eq!(header.ethertype(), EtherType::Arp);
         // ipv6
-        let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0x86, 0xDD];
+        let bytes = [&[0; 12][..], &[0x86, 0xDD][..]].concat();
         let (header, _) = EthernetII::split_header(&bytes).unwrap();
-        assert_eq!(header.ethertype.get(), EtherType::Ipv6);
+        assert_eq!(header.ethertype(), EtherType::Ipv6);
     }
 
     #[test]

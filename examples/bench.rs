@@ -1,15 +1,18 @@
 #![feature(bench_black_box)]
 use std::hint::black_box;
 
-use tygress::header::ethernet::EthernetII;
+use tygress::header::Ipv4;
 
 const N_LOOPS: usize = 1_000_000_000;
 
 fn main() {
-    let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0x08, 0x00];
+    let bytes = [
+        0x45, 0x00, 0x00, 0x73, 0x00, 0x00, 0x40, 0x00, 0x40, 0x11, 0xb8, 0x61, 0xc0, 0xa8, 0x00,
+        0x01, 0xc0, 0xa8, 0x00, 0xc7,
+    ];
     let start = std::time::Instant::now();
     for _ in 0..N_LOOPS {
-        let header = EthernetII::split_header(black_box(&bytes));
+        let header = Ipv4::split_header(black_box(&bytes));
         assert!(header.is_ok());
     }
 
