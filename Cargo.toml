@@ -1,9 +1,16 @@
 [package]
 name = "tygress"
+description = "A library implementing popular networking transport protocols in user space with Rust"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = [
+  "Andrew Guerrero <ajguerrer@gmail.com>"
+]
+documentation = "https://docs.rs/tygress"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/ajguerrer/tygress"
+keywords = ["ip", "tcp", "udp", "ethernet", "network"]
+categories = ["embedded", "network-programming"]
 
 [dependencies]
 nix = { version = "0.23", optional = true }
@@ -13,6 +20,7 @@ bindgen = { version = "0.59", optional = true }
 
 [features]
 default = []
+# eventually want to use rustix
 netdev = ["std", "nix", "bindgen"]
 overwrite = [ "bindgen" ]
 std = []
