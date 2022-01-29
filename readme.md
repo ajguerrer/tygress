@@ -1,9 +1,6 @@
-# Tygress
-
-**Work in progress**
+# Tygress (Work in Progress)
 
 A library implementing popular networking transport protocols in user space with Rust.
-
 
 ## Goals
 
