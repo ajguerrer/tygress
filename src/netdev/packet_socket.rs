@@ -5,7 +5,7 @@ use std::time::Duration;
 use nix::libc;
 use nix::sys::socket::{self, AddressFamily, LinkAddr, MsgFlags, SockAddr, SockFlag, SockType};
 
-use super::sys;
+use super::{sys, Event};
 use super::{Layer, NetDev};
 
 /// A socket of the AF_PACKET family. [Read more][packet]
@@ -86,7 +86,7 @@ impl NetDev for PacketSocket {
     }
 
     #[inline]
-    fn poll(&self, timeout: Option<Duration>) -> io::Result<bool> {
+    fn poll(&self, timeout: Option<Duration>) -> io::Result<Event> {
         sys::poll(self.fd.as_raw_fd(), timeout)
     }
 }

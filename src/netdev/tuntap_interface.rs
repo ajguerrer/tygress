@@ -8,7 +8,7 @@ use nix::sys::socket::{self, AddressFamily, SockFlag, SockType};
 use nix::sys::stat::Mode;
 use nix::unistd::{read, write};
 
-use super::sys;
+use super::{sys, Event};
 use super::{Layer, NetDev};
 
 /// A virtual TUN (IP) or TAP (Ethernet) interface. [Read more][tuntap]
@@ -89,7 +89,7 @@ impl NetDev for TunTapInterface {
     }
 
     #[inline]
-    fn poll(&self, timeout: Option<Duration>) -> io::Result<bool> {
+    fn poll(&self, timeout: Option<Duration>) -> io::Result<Event> {
         sys::poll(self.fd.as_raw_fd(), timeout)
     }
 }

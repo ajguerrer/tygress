@@ -11,6 +11,8 @@ use nix::sys::time::TimeSpec;
 pub(crate) mod owned;
 pub(crate) use owned::OwnedFd;
 
+use super::Event;
+
 #[cfg(all(feature = "bindgen", not(feature = "overwrite")))]
 include!(concat!(env!("OUT_DIR"), "/sys.rs"));
 
@@ -44,11 +46,22 @@ nix::ioctl_write_ptr_bad!(
 nix::ioctl_read_bad!(ioctl_siocgifmtu, libc::SIOCGIFMTU, ifreq);
 nix::ioctl_read_bad!(ioctl_siocgifindex, SIOCGIFINDEX, ifreq);
 
-pub fn poll(fd: RawFd, timeout: Option<Duration>) -> io::Result<bool> {
+pub fn poll(fd: RawFd, timeout: Option<Duration>) -> io::Result<Event> {
     let mut readfds = FdSet::new();
     readfds.insert(fd);
-    let timeout = timeout.map(TimeSpec::from);
-    pselect(None, &mut readfds, None, None, &timeout, None)?;
+    let mut writefds = FdSet::new();
+    writefds.insert(fd);
 
-    Ok(readfds.contains(fd))
+    let timeout = timeout.map(TimeSpec::from);
+    pselect(None, &mut readfds, &mut writefds, None, &timeout, None)?;
+
+    let mut event = Event::new();
+    if readfds.contains(fd) {
+        event |= Event::READABLE;
+    }
+    if writefds.contains(fd) {
+        event |= Event::WRITABLE;
+    }
+
+    Ok(event)
 }

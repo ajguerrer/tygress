@@ -32,6 +32,8 @@ pub use tuntap_interface::TunTapInterface;
 #[cfg(all(feature = "netdev", unix))]
 mod sys;
 
+use core::fmt;
+use core::ops;
 use core::time::Duration;
 
 /// Interface for network hardware capable of sending and receiving either raw IP packets or
@@ -39,11 +41,11 @@ use core::time::Duration;
 pub trait NetDev {
     type Error;
     /// Sends a single raw network frame contained in `buf`. `buf` may not be larger than the
-    /// devices [`mtu`][NetDev::mtu] plus 14 byte Ethernet header if the device operates on
+    /// devices [`mtu`][NetDev] plus 14 byte Ethernet header if the device operates on
     /// [`Layer::Ethernet`].
     fn send(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
     /// Receives a single raw network frame and places it in `buf`. `buf` must be large enough to
-    /// hold the devices [`mtu`][NetDev::mtu] plus 14 byte Ethernet header if the device operates on
+    /// hold the devices [`mtu`][NetDev] plus 14 byte Ethernet header if the device operates on
     /// [`Layer::Ethernet`].
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
     /// Maximum transmission unit.
@@ -54,8 +56,9 @@ pub trait NetDev {
     /// for devices that operate on [`Layer::Ethernet`]. Those devices should add 14 bytes of extra
     /// space for the Ethernet header (without a 802.1Q tag).
     fn mtu(&self) -> Result<usize, Self::Error>;
-    /// Checks readiness of incoming data without blocking for use in a async executor.
-    fn poll(&self, timeout: Option<Duration>) -> Result<bool, Self::Error>;
+    /// Checks io readiness so that calls to [`send`][`NetDev`] or [`recv`][`NetDev`] are guaranteed
+    /// not to block. Called in the event loop of an async executor.
+    fn poll(&self, timeout: Option<Duration>) -> Result<Event, Self::Error>;
 }
 
 /// Indicates the layer that a [`NetDev`] operates on.
@@ -65,4 +68,60 @@ pub enum Layer {
     Ip,
     /// Sends and receives Ethernet frames (Ip packets with Ethernet header).
     Ethernet,
+}
+
+#[derive(Copy, PartialEq, Eq, Clone, PartialOrd, Ord)]
+pub struct Event(u8);
+
+// bits must be one-hot
+const READABLE: u8 = 0b01;
+const WRITABLE: u8 = 0b10;
+
+impl Event {
+    /// [`Event`] with read readiness only. to read from a [`NetDev`].
+    pub const READABLE: Event = Event(READABLE);
+    /// [`Event`] with write readiness only. to write from a [`NetDev`].
+    pub const WRITABLE: Event = Event(WRITABLE);
+
+    /// Constructs an [`Event`] without any readiness.
+    pub const fn new() -> Self {
+        Self(0)
+    }
+
+    /// Returns `true` if a [`NetDev`] is ready to [`read`][`NetDev`].
+    #[inline]
+    pub const fn is_readable(&self) -> bool {
+        (self.0 & READABLE) != 0
+    }
+
+    /// Returns `true` if a [NetDev] is ready to [`write`][`NetDev`].
+    #[inline]
+    pub const fn is_writable(&self) -> bool {
+        (self.0 & WRITABLE) != 0
+    }
+}
+
+impl ops::BitOr for Event {
+    type Output = Self;
+
+    #[inline]
+    fn bitor(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+}
+
+impl ops::BitOrAssign for Event {
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.0 = (*self | other).0;
+    }
+}
+
+impl fmt::Debug for Event {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Event")
+            .field("readable", &self.is_readable())
+            .field("writable", &self.is_writable())
+            .finish()
+    }
 }
