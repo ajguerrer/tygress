@@ -15,6 +15,7 @@ use super::{Layer, NetDev};
 pub struct PacketSocket {
     fd: sys::OwnedFd,
     ifreq_name: [libc::c_char; libc::IF_NAMESIZE],
+    layer: Layer,
 }
 
 impl PacketSocket {
@@ -56,6 +57,7 @@ impl PacketSocket {
         Ok(PacketSocket {
             fd,
             ifreq_name: ifrn_name,
+            layer,
         })
     }
 }
@@ -88,5 +90,10 @@ impl NetDev for PacketSocket {
     #[inline]
     fn poll(&self, timeout: Option<Duration>) -> io::Result<Event> {
         sys::poll(self.fd.as_raw_fd(), timeout)
+    }
+
+    #[inline]
+    fn layer(&self) -> Layer {
+        self.layer
     }
 }

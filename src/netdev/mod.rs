@@ -41,27 +41,33 @@ use core::time::Duration;
 pub trait NetDev {
     type Error;
     /// Sends a single raw network frame contained in `buf`. `buf` may not be larger than the
-    /// devices [`mtu`][NetDev] plus 14 byte Ethernet header if the device operates on
-    /// [`Layer::Ethernet`].
+    /// devices [`mtu`][NetDev] plus 14 byte [`EthernetII`][crate::header::EthernetII]  header if
+    /// the device operates on [`Layer::Ethernet`].
     fn send(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
     /// Receives a single raw network frame and places it in `buf`. `buf` must be large enough to
-    /// hold the devices [`mtu`][NetDev] plus 14 byte Ethernet header if the device operates on
-    /// [`Layer::Ethernet`].
+    /// hold the devices [`mtu`][NetDev] plus 14 byte [`EthernetII`][crate::header::EthernetII]
+    /// header if the device operates on [`Layer::Ethernet`].
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
+    /// Checks io readiness so that calls to [`send`][NetDev] or [`recv`][NetDev] are guaranteed
+    /// not to block. Called in the event loop of an async executor.
+    fn poll(&self, timeout: Option<Duration>) -> Result<Event, Self::Error>;
     /// Maximum transmission unit.
     ///
     /// Indicates the maximum number of bytes that can be transmitted in an IP packet.
     ///
-    /// Note: To stay consistent with the standard, `mtu` *does not* factor in the Ethernet header
-    /// for devices that operate on [`Layer::Ethernet`]. Those devices should add 14 bytes of extra
-    /// space for the Ethernet header (without a 802.1Q tag).
+    /// # Note
+    ///
+    /// To stay consistent with the IETF standard, `mtu` *does not* factor in the 14 byte
+    /// [`EthernetII`][crate::header::EthernetII]  header. [`send`][NetDev] and [`recv`][NetDev]
+    /// should account for these extra bytes by increasing the buf size accordingly.
     fn mtu(&self) -> Result<usize, Self::Error>;
-    /// Checks io readiness so that calls to [`send`][`NetDev`] or [`recv`][`NetDev`] are guaranteed
-    /// not to block. Called in the event loop of an async executor.
-    fn poll(&self, timeout: Option<Duration>) -> Result<Event, Self::Error>;
+    /// Returns [`Layer`] device operates on. Devices operating on [`Layer::Ethernet`] include an
+    /// additional [`EthernetII`][crate::header::EthernetII] header.
+    fn layer(&self) -> Layer;
 }
 
-/// Indicates the layer that a [`NetDev`] operates on.
+/// Indicates the layer that a [`NetDev`] operates on. Devices operating on [`Layer::Ethernet`]
+/// include and additional [`EthernetII`][crate::header::EthernetII] header.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Layer {
     /// Sends and receives IP packets without a Ethernet header.  
@@ -88,13 +94,13 @@ impl Event {
         Self(0)
     }
 
-    /// Returns `true` if a [`NetDev`] is ready to [`read`][`NetDev`].
+    /// Returns `true` if a [`NetDev`] is ready to [`read`][NetDev].
     #[inline]
     pub const fn is_readable(&self) -> bool {
         (self.0 & READABLE) != 0
     }
 
-    /// Returns `true` if a [NetDev] is ready to [`write`][`NetDev`].
+    /// Returns `true` if a [`NetDev`] is ready to [`write`][NetDev].
     #[inline]
     pub const fn is_writable(&self) -> bool {
         (self.0 & WRITABLE) != 0

@@ -18,6 +18,7 @@ use super::{Layer, NetDev};
 pub struct TunTapInterface {
     fd: sys::OwnedFd,
     ifreq_name: [libc::c_char; libc::IF_NAMESIZE],
+    layer: Layer,
 }
 
 impl TunTapInterface {
@@ -49,6 +50,7 @@ impl TunTapInterface {
         Ok(TunTapInterface {
             fd,
             ifreq_name: ifrn_name,
+            layer,
         })
     }
 }
@@ -91,5 +93,10 @@ impl NetDev for TunTapInterface {
     #[inline]
     fn poll(&self, timeout: Option<Duration>) -> io::Result<Event> {
         sys::poll(self.fd.as_raw_fd(), timeout)
+    }
+
+    #[inline]
+    fn layer(&self) -> Layer {
+        self.layer
     }
 }
