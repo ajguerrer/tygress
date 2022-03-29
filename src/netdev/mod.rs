@@ -6,8 +6,8 @@
 //! layer or Network layer. Any hardware abstraction that can send and receive either EthernetII
 //! frames or IP packets can be an implemented as a [`NetDev`].
 //!
-//! Once a [`NetDev`] is fed to the `tygress` executor, the executor multiplexes data between the
-//! [`NetDev`] and any open sockets.
+//! Once a [`NetDev`] is fed to the `tygress` [`Driver`][crate::driver::Driver], data is multiplexed
+//! between the [`NetDev`] and any open sockets.
 //!
 //! If the `netdev` feature is enabled, some OS-specific [`NetDev`]s for Unix are provided,
 //! including:
@@ -49,7 +49,7 @@ pub trait NetDev {
     /// header if the device operates on [`Layer::Ethernet`].
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
     /// Checks io readiness so that calls to [`send`][NetDev] or [`recv`][NetDev] are guaranteed
-    /// not to block. Called in the event loop of an async executor.
+    /// not to block. Called in the event loop of an async I/O [`Driver`][crate::driver::Driver].
     fn poll(&self, timeout: Option<Duration>) -> Result<Event, Self::Error>;
     /// Maximum transmission unit.
     ///

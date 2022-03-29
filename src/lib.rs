@@ -4,7 +4,7 @@
 //! A library that implements several common Internet protocol suites in user-space.
 //!
 //! Tygress is a learning project and not meant for use in production. While the primary goal is
-//! correctness, Operating Systems and [The Rust Standard Library][std] offer far more robust
+//! correctness, operating systems and [The Rust Standard Library][std] offer far more robust
 //! [networking primitives][net]. Use those instead. If you are interested in a embedded library,
 //! take a look at [smoltcp]. It was used heavily as a reference.
 //!
@@ -16,6 +16,7 @@
 //! [net]: https://doc.rust-lang.org/std/net/
 //! [smoltcp]: https://docs.rs/smoltcp/latest/smoltcp/
 
+pub mod driver;
 pub mod error;
 pub mod header;
 pub mod netdev;

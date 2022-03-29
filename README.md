@@ -13,7 +13,7 @@ A library implementing popular networking transport protocols in user space with
     - QUIC
 - **Familiar, but `async`** - Rust already has [networking primitives for TCP/UDP][net]. That
   familiar API is reproduced here, but with non-blocking primitives similar to the API in
-  [Tokio][tokio]. These primitives are intended for use with the `tygress` executor multiplexing
+  [Tokio][tokio]. These primitives are intended for use with the Tygress I/O driver multiplexing
   network traffic between a `NetDev` to a collection of sockets.
 - **Safe, but zero-copy** - Some use of the the `unsafe` keyword is necessary to provide a type-safe
   zero-copy API. Usage of `unsafe` is cordoned off to a small, well documented section of the

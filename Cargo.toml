@@ -32,3 +32,4 @@ name = "bench"
 
 [[example]]
 name = "playground"
+required-features = ["netdev"]

@@ -1,11 +1,10 @@
-use tygress::header::Ipv4;
+use tygress::driver::Driver;
+use tygress::netdev::{Layer, PacketSocket};
 
 fn main() {
-    let bytes = [
-        0x45, 0x00, 0x00, 0x73, 0x00, 0x00, 0x40, 0x00, 0x40, 0x11, 0xb8, 0x61, 0xc0, 0xa8, 0x00,
-        0x01, 0xc0, 0xa8, 0x00, 0xc7,
-    ];
-    let (header, _, _) = Ipv4::split_header(&bytes).unwrap();
-
-    println!("{}", header);
+    let socket = PacketSocket::bind("eth0", Layer::Ethernet).expect("failed to bind eth0");
+    let body = async {
+        println!("hello world");
+    };
+    Driver::new(socket).turn(body);
 }
