@@ -15,7 +15,7 @@ impl fmt::Display for Error {
             Error::Truncated => write!(f, "truncated input buffer"),
             Error::Unsupported => write!(f, "unsupported input parameter"),
             Error::Malformed => write!(f, "malformed input parameter"),
-            Error::Checksum => write!(f, "bad checksum"),
+            Error::Checksum => write!(f, "checksum assertion error"),
         }
     }
 }

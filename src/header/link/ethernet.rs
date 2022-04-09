@@ -3,8 +3,8 @@
 //! [`EthernetII`] header with source and destination [`EtherAddr`]s and a [`EtherType`].
 use core::fmt;
 
-use super::as_header;
-use crate::error::{Error, Result};
+use crate::header::error::{Error, Result};
+use crate::header::macros::as_header;
 
 /// An EthernetII frame header. [Read more][RFC 1042]
 ///
@@ -222,7 +222,6 @@ impl fmt::Display for EtherTypeRepr {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::Error;
 
     use super::*;
 

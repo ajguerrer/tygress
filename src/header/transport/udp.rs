@@ -5,9 +5,9 @@
 
 use core::fmt;
 
-use super::as_header;
-use super::primitive::U16;
-use crate::error::{Error, Result};
+use crate::header::error::{Error, Result};
+use crate::header::macros::as_header;
+use crate::header::primitive::U16;
 
 /// A UDP header. [Read more][RFC 768]
 ///
@@ -77,7 +77,6 @@ impl fmt::Display for Udp {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::Error;
 
     use super::*;
 

@@ -41,11 +41,11 @@ use core::time::Duration;
 pub trait NetDev {
     type Error;
     /// Sends a single raw network frame contained in `buf`. `buf` may not be larger than the
-    /// devices [`mtu`][NetDev] plus 14 byte [`EthernetII`][crate::header::EthernetII]  header if
+    /// devices [`mtu`][NetDev] plus 14 byte [`EthernetII`][crate::header::link::EthernetII]  header if
     /// the device operates on [`Layer::Ethernet`].
     fn send(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
     /// Receives a single raw network frame and places it in `buf`. `buf` must be large enough to
-    /// hold the devices [`mtu`][NetDev] plus 14 byte [`EthernetII`][crate::header::EthernetII]
+    /// hold the devices [`mtu`][NetDev] plus 14 byte [`EthernetII`][crate::header::link::EthernetII]
     /// header if the device operates on [`Layer::Ethernet`].
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
     /// Checks io readiness so that calls to [`send`][NetDev] or [`recv`][NetDev] are guaranteed
@@ -58,16 +58,16 @@ pub trait NetDev {
     /// # Note
     ///
     /// To stay consistent with the IETF standard, `mtu` *does not* factor in the 14 byte
-    /// [`EthernetII`][crate::header::EthernetII]  header. [`send`][NetDev] and [`recv`][NetDev]
+    /// [`EthernetII`][crate::header::link::EthernetII]  header. [`send`][NetDev] and [`recv`][NetDev]
     /// should account for these extra bytes by increasing the buf size accordingly.
     fn mtu(&self) -> Result<usize, Self::Error>;
     /// Returns [`Layer`] device operates on. Devices operating on [`Layer::Ethernet`] include an
-    /// additional [`EthernetII`][crate::header::EthernetII] header.
+    /// additional [`EthernetII`][crate::header::link::EthernetII] header.
     fn layer(&self) -> Layer;
 }
 
 /// Indicates the layer that a [`NetDev`] operates on. Devices operating on [`Layer::Ethernet`]
-/// include and additional [`EthernetII`][crate::header::EthernetII] header.
+/// include and additional [`EthernetII`][crate::header::link::EthernetII] header.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Layer {
     /// Sends and receives IP packets without a Ethernet header.  

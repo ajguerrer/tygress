@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::error::{Error, Result};
+use crate::header::error::{Error, Result};
 
 /// An IP version number.
 ///

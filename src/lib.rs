@@ -17,6 +17,5 @@
 //! [smoltcp]: https://docs.rs/smoltcp/latest/smoltcp/
 
 pub mod driver;
-pub mod error;
 pub mod header;
 pub mod netdev;

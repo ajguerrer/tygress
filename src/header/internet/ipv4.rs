@@ -3,9 +3,11 @@
 //! [`Ipv4`] header supporting 32-bit addressing (see [`Ipv4Addr`]) and fragmentation.
 use core::fmt;
 
-use super::primitive::{U16, U8};
-use super::{as_header, verify_checksum, Dscp, Ecn, Protocol, ProtocolRepr, Version};
-use crate::error::{Error, Result};
+use crate::header::error::{Error, Result};
+use crate::header::macros::{as_header, verify_checksum};
+use crate::header::primitive::{U16, U8};
+
+use super::ip::{Dscp, Ecn, Protocol, ProtocolRepr, Version};
 
 /// An IPv4 header. [Read more][RFC 791]
 ///
@@ -469,7 +471,6 @@ impl FlagsFragOffset {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::Error;
 
     use super::*;
 
