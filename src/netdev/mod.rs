@@ -1,5 +1,3 @@
-#![allow(unsafe_code)]
-
 //! An interface to physical networking hardware.
 //!
 //! This module contains the [`NetDev`] trait. [`NetDev`] can be configured to work at the Data Link
@@ -36,19 +34,18 @@ use core::fmt;
 use core::ops;
 use core::time::Duration;
 
-/// Interface for network hardware capable of sending and receiving either raw IP packets or
-/// Ethernet frames depending on which [`Layer`] the device operates.
+/// Interface for network hardware capable of sending and receiving data on a given [`Topology`].
 pub trait NetDev {
     type Error;
     /// Sends a single raw network frame contained in `buf`. `buf` may not be larger than the
-    /// devices [`mtu`][NetDev] plus 14 byte [`EthernetII`][crate::header::link::EthernetII]  header if
-    /// the device operates on [`Layer::Ethernet`].
+    /// devices [`mtu`][NetDev] plus an additional [`link`][crate::header::link] header, if
+    /// applicable.
     fn send(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
     /// Receives a single raw network frame and places it in `buf`. `buf` must be large enough to
-    /// hold the devices [`mtu`][NetDev] plus 14 byte [`EthernetII`][crate::header::link::EthernetII]
-    /// header if the device operates on [`Layer::Ethernet`].
+    /// hold the devices [`mtu`][NetDev] plus an additional [`link`][crate::header::link] header, if
+    /// applicable.
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
-    /// Checks io readiness so that calls to [`send`][NetDev] or [`recv`][NetDev] are guaranteed
+    /// Checks I/O readiness so that calls to [`send`][NetDev] or [`recv`][NetDev] are guaranteed
     /// not to block. Called in the event loop of an async I/O [`Driver`][crate::driver::Driver].
     fn poll(&self, timeout: Option<Duration>) -> Result<Event, Self::Error>;
     /// Maximum transmission unit.
@@ -57,25 +54,27 @@ pub trait NetDev {
     ///
     /// # Note
     ///
-    /// To stay consistent with the IETF standard, `mtu` *does not* factor in the 14 byte
-    /// [`EthernetII`][crate::header::link::EthernetII]  header. [`send`][NetDev] and [`recv`][NetDev]
-    /// should account for these extra bytes by increasing the buf size accordingly.
+    /// To stay consistent with the IETF standard, `mtu` *does not* factor in the
+    /// [`link`][crate::header::link] header. [`send`][NetDev] and [`recv`][NetDev] should account
+    /// for these extra bytes by increasing the buf size accordingly.
     fn mtu(&self) -> Result<usize, Self::Error>;
-    /// Returns [`Layer`] device operates on. Devices operating on [`Layer::Ethernet`] include an
-    /// additional [`EthernetII`][crate::header::link::EthernetII] header.
-    fn layer(&self) -> Layer;
+    /// Returns network [`Topology`] device operates on. Note, there is no particular requirement on
+    /// which layers of the Internet Protocol suite a device must support. Rather, it is a function
+    /// of [`Topology`] and [`header`][crate::header] content.
+    fn topology(&self) -> Topology;
 }
 
-/// Indicates the layer that a [`NetDev`] operates on. Devices operating on [`Layer::Ethernet`]
-/// include and additional [`EthernetII`][crate::header::link::EthernetII] header.
+/// The network topology that a [`NetDev`] operates on.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum Layer {
+pub enum Topology {
     /// Sends and receives IP packets without a Ethernet header.  
     Ip,
-    /// Sends and receives Ethernet frames (Ip packets with Ethernet header).
-    Ethernet,
+    /// Sends and receives EthernetII frames (Ip packets with
+    /// [`EthernetII`][crate::header::link::EthernetII] header).
+    EthernetII,
 }
 
+/// A [`NetDev`] flag indicating readiness to perform I/O.
 #[derive(Copy, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub struct Event(u8);
 
@@ -84,9 +83,9 @@ const READABLE: u8 = 0b01;
 const WRITABLE: u8 = 0b10;
 
 impl Event {
-    /// [`Event`] with read readiness only. to read from a [`NetDev`].
+    /// [`Event`] with read readiness only.
     pub const READABLE: Event = Event(READABLE);
-    /// [`Event`] with write readiness only. to write from a [`NetDev`].
+    /// [`Event`] with write readiness only.
     pub const WRITABLE: Event = Event(WRITABLE);
 
     /// Constructs an [`Event`] without any readiness.
@@ -94,13 +93,13 @@ impl Event {
         Self(0)
     }
 
-    /// Returns `true` if a [`NetDev`] is ready to [`read`][NetDev].
+    /// Returns `true` if [`NetDev`] is ready to [`read`][NetDev].
     #[inline]
     pub const fn is_readable(&self) -> bool {
         (self.0 & READABLE) != 0
     }
 
-    /// Returns `true` if a [`NetDev`] is ready to [`write`][NetDev].
+    /// Returns `true` if [`NetDev`] is ready to [`write`][NetDev].
     #[inline]
     pub const fn is_writable(&self) -> bool {
         (self.0 & WRITABLE) != 0

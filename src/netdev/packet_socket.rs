@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 use std::io;
 use std::os::unix::prelude::{AsRawFd, FromRawFd};
 use std::time::Duration;
@@ -6,7 +8,7 @@ use nix::libc;
 use nix::sys::socket::{self, AddressFamily, LinkAddr, MsgFlags, SockAddr, SockFlag, SockType};
 
 use super::{sys, Event};
-use super::{Layer, NetDev};
+use super::{NetDev, Topology};
 
 /// A socket of the AF_PACKET family. [Read more][packet]
 ///
@@ -15,17 +17,17 @@ use super::{Layer, NetDev};
 pub struct PacketSocket {
     fd: sys::OwnedFd,
     ifreq_name: [libc::c_char; libc::IF_NAMESIZE],
-    layer: Layer,
+    layer: Topology,
 }
 
 impl PacketSocket {
     /// Creates a socket with family `AF_PACKET` and binds it to the interface called `name`.
     ///
     /// Requires superuser privileges or the `CAP_NET_RAW` capability.
-    pub fn bind(name: &str, layer: Layer) -> io::Result<Self> {
+    pub fn bind(name: &str, layer: Topology) -> io::Result<Self> {
         let ty = match layer {
-            Layer::Ip => SockType::Datagram,
-            Layer::Ethernet => SockType::Raw,
+            Topology::Ip => SockType::Datagram,
+            Topology::EthernetII => SockType::Raw,
         };
 
         let fd = socket::socket(AddressFamily::Packet, ty, SockFlag::SOCK_NONBLOCK, None)?;
@@ -93,7 +95,7 @@ impl NetDev for PacketSocket {
     }
 
     #[inline]
-    fn layer(&self) -> Layer {
+    fn topology(&self) -> Topology {
         self.layer
     }
 }

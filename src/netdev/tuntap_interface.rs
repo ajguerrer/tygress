@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 use std::io;
 use std::os::unix::prelude::{AsRawFd, FromRawFd};
 use std::time::Duration;
@@ -9,7 +11,7 @@ use nix::sys::stat::Mode;
 use nix::unistd::{read, write};
 
 use super::{sys, Event};
-use super::{Layer, NetDev};
+use super::{NetDev, Topology};
 
 /// A virtual TUN (IP) or TAP (Ethernet) interface. [Read more][tuntap]
 ///
@@ -18,7 +20,7 @@ use super::{Layer, NetDev};
 pub struct TunTapInterface {
     fd: sys::OwnedFd,
     ifreq_name: [libc::c_char; libc::IF_NAMESIZE],
-    layer: Layer,
+    layer: Topology,
 }
 
 impl TunTapInterface {
@@ -26,7 +28,7 @@ impl TunTapInterface {
     ///
     /// Depending on the ownership privileges of the interface, superuser privileges or
     /// `CAP_NET_ADMIN` capabilities may be required.
-    pub fn bind(name: &str, layer: Layer) -> io::Result<Self> {
+    pub fn bind(name: &str, layer: Topology) -> io::Result<Self> {
         let fd = open(
             "/dev/net/tun",
             OFlag::O_RDWR | OFlag::O_NONBLOCK,
@@ -37,8 +39,8 @@ impl TunTapInterface {
 
         let ifrn_name = sys::ifreq_name(name);
         let ifru_flags = match layer {
-            Layer::Ip => libc::IFF_TUN as libc::c_short,
-            Layer::Ethernet => libc::IFF_TAP as libc::c_short,
+            Topology::Ip => libc::IFF_TUN as libc::c_short,
+            Topology::EthernetII => libc::IFF_TAP as libc::c_short,
         } | libc::IFF_NO_PI as libc::c_short;
         let ifreq = sys::ifreq {
             ifr_ifrn: sys::ifreq__bindgen_ty_1 { ifrn_name },
@@ -96,7 +98,7 @@ impl NetDev for TunTapInterface {
     }
 
     #[inline]
-    fn layer(&self) -> Layer {
+    fn topology(&self) -> Topology {
         self.layer
     }
 }

@@ -1,7 +1,7 @@
 #![feature(bench_black_box)]
 use std::hint::black_box;
 
-use tygress::header::Ipv4;
+use tygress::header::internet::Ipv4;
 
 const N_LOOPS: usize = 1_000_000_000;
 
