@@ -6,5 +6,5 @@ fn main() {
     let body = async {
         println!("hello world");
     };
-    Driver::new(socket).turn(body);
+    Driver::<PacketSocket, 1400>::new(socket).turn(body);
 }

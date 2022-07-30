@@ -12,7 +12,7 @@ fn main() {
     ];
     let start = std::time::Instant::now();
     for _ in 0..N_LOOPS {
-        let header = Ipv4::split_header(black_box(&bytes));
+        let header = Ipv4::from_bytes(black_box(&bytes));
         assert!(header.is_ok());
     }
 

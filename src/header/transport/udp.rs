@@ -28,7 +28,7 @@ pub struct Udp {
 
 impl Udp {
     #[inline]
-    pub fn split_header(bytes: &[u8]) -> Result<(&Self, &[u8])> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
         let (header, payload) = as_header!(Udp, bytes)?;
 
         if header.len() < 8 {
@@ -83,6 +83,6 @@ mod tests {
     #[test]
     fn short_header() {
         let bytes = [0; 7];
-        assert_eq!(Udp::split_header(&bytes).unwrap_err(), Error::Truncated);
+        assert_eq!(Udp::from_bytes(&bytes).unwrap_err(), Error::Truncated);
     }
 }

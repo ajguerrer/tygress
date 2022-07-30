@@ -8,19 +8,37 @@ use crate::header::error::{Error, Result};
 #[non_exhaustive]
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[repr(u8)]
-pub enum Version {
+pub enum IpVersion {
     Ipv4 = 4,
     Ipv6 = 6,
 }
 
-impl From<Version> for u8 {
+impl IpVersion {
+    /// Return version field of an IP packet stored in bytes.
+    ///
+    /// Version is a field common to IP packets of all versions. This function determines the
+    /// version of an IP packet so the IP header may be interpreted correctly.
     #[inline]
-    fn from(value: Version) -> Self {
+    pub fn from_bytes(bytes: &[u8]) -> Result<IpVersion> {
+        match bytes.get(0) {
+            Some(byte) => match byte >> 4 {
+                4 => Ok(IpVersion::Ipv4),
+                6 => Ok(IpVersion::Ipv6),
+                _ => Err(Error::Unsupported),
+            },
+            None => Err(Error::Truncated),
+        }
+    }
+}
+
+impl From<IpVersion> for u8 {
+    #[inline]
+    fn from(value: IpVersion) -> Self {
         value as u8
     }
 }
 
-impl TryFrom<u8> for Version {
+impl TryFrom<u8> for IpVersion {
     type Error = Error;
 
     #[inline]
@@ -33,7 +51,7 @@ impl TryFrom<u8> for Version {
     }
 }
 
-impl fmt::Display for Version {
+impl fmt::Display for IpVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self, f)
     }
@@ -48,7 +66,7 @@ impl fmt::Display for Version {
 #[non_exhaustive]
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[repr(u8)]
-pub enum Protocol {
+pub enum IpProtocol {
     HopByHop = 0x00,
     Icmp = 0x01,
     Igmp = 0x02,
@@ -61,14 +79,14 @@ pub enum Protocol {
     Ipv6Opts = 0x3c,
 }
 
-impl From<Protocol> for u8 {
+impl From<IpProtocol> for u8 {
     #[inline]
-    fn from(value: Protocol) -> Self {
+    fn from(value: IpProtocol) -> Self {
         value as u8
     }
 }
 
-impl TryFrom<u8> for Protocol {
+impl TryFrom<u8> for IpProtocol {
     type Error = Error;
 
     #[inline]
@@ -89,7 +107,7 @@ impl TryFrom<u8> for Protocol {
     }
 }
 
-impl fmt::Display for Protocol {
+impl fmt::Display for IpProtocol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self, f)
     }
@@ -103,16 +121,16 @@ impl fmt::Display for Protocol {
 pub(crate) struct ProtocolRepr([u8; 1]);
 
 impl ProtocolRepr {
-    const HOPBYHOP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::HopByHop as u8));
-    const ICMP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Icmp as u8));
-    const IGMP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Igmp as u8));
-    const TCP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Tcp as u8));
-    const UDP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Udp as u8));
-    const IPV6ROUTE: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Ipv6Route as u8));
-    const IPV6FRAG: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Ipv6Frag as u8));
-    const ICMPV6: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Icmpv6 as u8));
-    const IPV6NONXT: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Ipv6NoNxt as u8));
-    const IPV6OPTS: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(Protocol::Ipv6Opts as u8));
+    const HOPBYHOP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::HopByHop as u8));
+    const ICMP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Icmp as u8));
+    const IGMP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Igmp as u8));
+    const TCP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Tcp as u8));
+    const UDP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Udp as u8));
+    const IPV6ROUTE: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Ipv6Route as u8));
+    const IPV6FRAG: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Ipv6Frag as u8));
+    const ICMPV6: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Icmpv6 as u8));
+    const IPV6NONXT: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Ipv6NoNxt as u8));
+    const IPV6OPTS: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Ipv6Opts as u8));
 
     /// Check inner self for validity.
     #[inline]
@@ -134,26 +152,26 @@ impl ProtocolRepr {
 
     /// Get the underlying [`Protocol`].
     #[inline]
-    pub(crate) const fn get(&self) -> Protocol {
+    pub(crate) const fn get(&self) -> IpProtocol {
         match *self {
-            Self::HOPBYHOP => Protocol::HopByHop,
-            Self::ICMP => Protocol::Icmp,
-            Self::IGMP => Protocol::Igmp,
-            Self::TCP => Protocol::Tcp,
-            Self::UDP => Protocol::Udp,
-            Self::IPV6ROUTE => Protocol::Ipv6Route,
-            Self::IPV6FRAG => Protocol::Ipv6Frag,
-            Self::ICMPV6 => Protocol::Icmpv6,
-            Self::IPV6NONXT => Protocol::Ipv6NoNxt,
-            Self::IPV6OPTS => Protocol::Ipv6Opts,
+            Self::HOPBYHOP => IpProtocol::HopByHop,
+            Self::ICMP => IpProtocol::Icmp,
+            Self::IGMP => IpProtocol::Igmp,
+            Self::TCP => IpProtocol::Tcp,
+            Self::UDP => IpProtocol::Udp,
+            Self::IPV6ROUTE => IpProtocol::Ipv6Route,
+            Self::IPV6FRAG => IpProtocol::Ipv6Frag,
+            Self::ICMPV6 => IpProtocol::Icmpv6,
+            Self::IPV6NONXT => IpProtocol::Ipv6NoNxt,
+            Self::IPV6OPTS => IpProtocol::Ipv6Opts,
             _ => unreachable!(),
         }
     }
 }
 
-impl From<Protocol> for ProtocolRepr {
+impl From<IpProtocol> for ProtocolRepr {
     #[inline]
-    fn from(value: Protocol) -> Self {
+    fn from(value: IpProtocol) -> Self {
         ProtocolRepr(u8::to_be_bytes(value as u8))
     }
 }

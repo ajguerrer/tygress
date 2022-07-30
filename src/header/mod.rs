@@ -7,7 +7,7 @@
 //! as headers followed by a payload using the type system.
 //!
 //! The headers in this module are categorized by layers of the Internet protocol suite described in
-//! [RFC 1122]. Each header has a `split_header` function that interprets a `&[u8]` as an immutable
+//! [RFC 1122]. Each header has a `from_bytes` function that interprets a `&[u8]` as an immutable
 //! view of a header and it's payload, validating the header along the way. If a header has dynamic
 //! fields, then more slices may be returned.
 //!  

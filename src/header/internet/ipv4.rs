@@ -7,7 +7,7 @@ use crate::header::error::{Error, Result};
 use crate::header::macros::{as_header, verify_checksum};
 use crate::header::primitive::{U16, U8};
 
-use super::ip::{Dscp, Ecn, Protocol, ProtocolRepr, Version};
+use super::ip::{Dscp, Ecn, IpProtocol, IpVersion, ProtocolRepr};
 
 /// An IPv4 header. [Read more][RFC 791]
 ///
@@ -40,7 +40,7 @@ impl Ipv4 {
     /// the size or contents do not represent a valid IPv4 header. Since IPv4 options are dynamic in
     /// length, they are not included in the header and are instead returned as part of the payload.
     #[inline]
-    pub fn split_header(bytes: &[u8]) -> Result<(&Self, &[u8], &[u8])> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8], &[u8])> {
         let (header, options_payload) = as_header!(Ipv4, bytes)?;
 
         if header.ver_ihl.version() != 4 {
@@ -64,10 +64,10 @@ impl Ipv4 {
         Ok((header, options, payload))
     }
 
-    /// Always returns [`Version::Ipv4`].
+    /// Always returns [`IpVersion::Ipv4`].
     #[inline]
-    pub fn version(&self) -> Version {
-        Version::Ipv4
+    pub fn version(&self) -> IpVersion {
+        IpVersion::Ipv4
     }
 
     /// Returns the length of the IPv4 header in bytes. At a minimum, the length of a header with no
@@ -112,8 +112,8 @@ impl Ipv4 {
 
     /// Returns destination IPv4 address.
     #[inline]
-    pub fn flags(&self) -> Flags {
-        Flags::try_from(self.flgs_ofst.flags()).unwrap()
+    pub fn flags(&self) -> Ipv4Flags {
+        Ipv4Flags::try_from(self.flgs_ofst.flags()).unwrap()
     }
 
     /// Returns destination IPv4 address.
@@ -130,7 +130,7 @@ impl Ipv4 {
 
     /// Returns destination IPv4 address.
     #[inline]
-    pub fn protocol(&self) -> Protocol {
+    pub fn protocol(&self) -> IpProtocol {
         self.proto.get()
     }
 
@@ -329,20 +329,20 @@ impl fmt::Display for Ipv4Addr {
 #[non_exhaustive]
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 #[repr(u8)]
-pub enum Flags {
+pub enum Ipv4Flags {
     LastFrag = 0b000,
     MoreFrag = 0b001,
     DontFrag = 0b010,
 }
 
-impl From<Flags> for u8 {
+impl From<Ipv4Flags> for u8 {
     #[inline]
-    fn from(value: Flags) -> Self {
+    fn from(value: Ipv4Flags) -> Self {
         value as u8
     }
 }
 
-impl TryFrom<u8> for Flags {
+impl TryFrom<u8> for Ipv4Flags {
     type Error = Error;
 
     #[inline]
@@ -356,7 +356,7 @@ impl TryFrom<u8> for Flags {
     }
 }
 
-impl fmt::Display for Flags {
+impl fmt::Display for Ipv4Flags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self, f)
     }
@@ -477,6 +477,6 @@ mod tests {
     #[test]
     fn short_header() {
         let bytes = [0; 19];
-        assert_eq!(Ipv4::split_header(&bytes).unwrap_err(), Error::Truncated);
+        assert_eq!(Ipv4::from_bytes(&bytes).unwrap_err(), Error::Truncated);
     }
 }

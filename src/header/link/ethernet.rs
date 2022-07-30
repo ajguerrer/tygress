@@ -24,7 +24,7 @@ impl EthernetII {
     /// Returns an immutable view of `bytes` as an EthernetII header followed by a payload or an
     /// error if the size or contents do not represent a valid EthernetII header.
     #[inline]
-    pub fn split_header(bytes: &[u8]) -> Result<(&Self, &[u8])> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
         let (header, payload) = as_header!(EthernetII, bytes)?;
 
         header.ty.check()?;
@@ -229,7 +229,7 @@ mod tests {
     fn short_header() {
         let bytes = [0; 13];
         assert_eq!(
-            EthernetII::split_header(&bytes).unwrap_err(),
+            EthernetII::from_bytes(&bytes).unwrap_err(),
             Error::Truncated
         );
     }
@@ -238,7 +238,7 @@ mod tests {
     fn invalid_ethertype() {
         let bytes = [0; 14];
         assert_eq!(
-            EthernetII::split_header(&bytes).unwrap_err(),
+            EthernetII::from_bytes(&bytes).unwrap_err(),
             Error::Unsupported
         );
     }
@@ -247,15 +247,15 @@ mod tests {
     fn valid_ethertypes() {
         // ipv4
         let bytes = [&[0; 12][..], &[0x08, 0x00][..]].concat();
-        let (header, _) = EthernetII::split_header(&bytes).unwrap();
+        let (header, _) = EthernetII::from_bytes(&bytes).unwrap();
         assert_eq!(header.ethertype(), EtherType::Ipv4);
         // arp
         let bytes = [&[0; 12][..], &[0x08, 0x06][..]].concat();
-        let (header, _) = EthernetII::split_header(&bytes).unwrap();
+        let (header, _) = EthernetII::from_bytes(&bytes).unwrap();
         assert_eq!(header.ethertype(), EtherType::Arp);
         // ipv6
         let bytes = [&[0; 12][..], &[0x86, 0xDD][..]].concat();
-        let (header, _) = EthernetII::split_header(&bytes).unwrap();
+        let (header, _) = EthernetII::from_bytes(&bytes).unwrap();
         assert_eq!(header.ethertype(), EtherType::Ipv6);
     }
 
