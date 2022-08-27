@@ -20,7 +20,7 @@ impl IpVersion {
     /// version of an IP packet so the IP header may be interpreted correctly.
     #[inline]
     pub fn from_bytes(bytes: &[u8]) -> Result<IpVersion> {
-        match bytes.get(0) {
+        match bytes.first() {
             Some(byte) => match byte >> 4 {
                 4 => Ok(IpVersion::Ipv4),
                 6 => Ok(IpVersion::Ipv6),

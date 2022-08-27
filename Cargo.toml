@@ -13,10 +13,13 @@ keywords = ["ip", "tcp", "udp", "ethernet", "network"]
 categories = ["embedded", "network-programming"]
 
 [dependencies]
-nix = { version = "0.23", optional = true }
+nix = { version = "0.25", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.3", default_features = false }
 
 [build-dependencies]
-bindgen = { version = "0.59", optional = true }
+bindgen = { version = "0.60", optional = true }
 
 [features]
 default = []
@@ -28,8 +31,9 @@ inline_always = []
 inline_never = []
 
 [[example]]
-name = "bench"
-
-[[example]]
 name = "playground"
 required-features = ["netdev"]
+
+[[bench]]
+name = "bench"
+harness = false
