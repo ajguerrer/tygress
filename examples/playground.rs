@@ -1,10 +1,16 @@
-use tygress::driver::Driver;
-use tygress::netdev::{PacketSocket, Topology};
+use tygress::netdev::{Event, NetDev, Topology, TunTapInterface};
 
 fn main() {
-    let socket = PacketSocket::bind("eth0", Topology::EthernetII).expect("failed to bind eth0");
-    let body = async {
-        println!("hello world");
-    };
-    Driver::<PacketSocket, 1400>::new(socket).turn(body);
+    let name = "tun0";
+    let socket = TunTapInterface::bind(name, Topology::Ip)
+        .unwrap_or_else(|_| panic!("failed to bind {}", name));
+    println!("mtu: {}", socket.mtu());
+    let mut buf = vec![0; socket.mtu()];
+    loop {
+        let event = socket.poll(Event::READABLE, None).unwrap();
+        if event.is_readable() {
+            let read = socket.recv(&mut buf).unwrap();
+            println!("{:?}", &buf[..read]);
+        }
+    }
 }

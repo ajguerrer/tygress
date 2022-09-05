@@ -7,8 +7,15 @@ fn main() {
     use std::path::PathBuf;
 
     const INCLUDE: &str = r#"
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <asm-generic/ioctl.h>
+#include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <linux/if.h>
+#include <linux/if_tun.h>
+#include <linux/if_ether.h>
+#include <linux/if_packet.h>
     "#;
 
     #[cfg(not(feature = "overwrite"))]
@@ -19,8 +26,10 @@ fn main() {
 
     bindgen::Builder::default()
         .header_contents("include-file.h", INCLUDE)
-        .allowlist_type("ifreq")
-        .allowlist_var("SIOCGIFINDEX")
+        .allowlist_type("(ifreq|sockaddr|sockaddr_ll|socklen_t)")
+        .allowlist_function("(bind|ioctl)")
+        .allowlist_var("(SIOCGIFINDEX|SIOCGIFMTU|IF_NAMESIZE|IFF_TUN|IFF_TAP|IFF_NO_PI|ETH_P_ARP)")
+        .layout_tests(false)
         .generate()
         .unwrap()
         .write_to_file(outdir.join("sys.rs"))

@@ -40,14 +40,15 @@ pub trait NetDev {
     /// Sends a single raw network frame contained in `buf`. `buf` may not be larger than the
     /// devices [`mtu`][NetDev] plus an additional [`link`][crate::header::link] header, if
     /// applicable.
-    fn send(&mut self, buf: &[u8]) -> Result<usize, Self::Error>;
+    fn send(&self, buf: &[u8]) -> Result<usize, Self::Error>;
     /// Receives a single raw network frame and places it in `buf`. `buf` must be large enough to
     /// hold the devices [`mtu`][NetDev] plus an additional [`link`][crate::header::link] header, if
     /// applicable.
-    fn recv(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
-    /// Checks I/O readiness so that calls to [`send`][NetDev] or [`recv`][NetDev] are guaranteed
-    /// not to block. Called in the event loop of an async I/O [`Driver`][crate::driver::Driver].
-    fn poll(&self, timeout: Option<Duration>) -> Result<Event, Self::Error>;
+    fn recv(&self, buf: &mut [u8]) -> Result<usize, Self::Error>;
+    /// Checks I/O readiness by interest so that calls to [`send`][NetDev] or [`recv`][NetDev] do
+    /// not to block. Called in the event loop of an async I/O [`Driver`][crate::driver::Driver]. If
+    /// `timeout` is [None], then poll will wait indefinitely.
+    fn poll(&self, interest: Event, timeout: Option<Duration>) -> Result<Event, Self::Error>;
     /// Maximum transmission unit.
     ///
     /// Indicates the maximum number of bytes that can be transmitted in an IP packet.
@@ -57,7 +58,9 @@ pub trait NetDev {
     /// To stay consistent with the IETF standard, `mtu` *does not* factor in the
     /// [`link`][crate::header::link] header. [`send`][NetDev] and [`recv`][NetDev] should account
     /// for these extra bytes by increasing the buf size accordingly.
-    fn mtu(&self) -> Result<usize, Self::Error>;
+    ///
+    /// `mtu` is calculated once at the beginning of the [NetDev]'s lifetime.
+    fn mtu(&self) -> usize;
     /// Returns network [`Topology`] device operates on. Note, there is no particular requirement on
     /// which layers of the Internet Protocol suite a device must support. Rather, it is a function
     /// of [`Topology`] and [`header`][crate::header] content.

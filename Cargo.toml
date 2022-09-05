@@ -13,18 +13,18 @@ keywords = ["ip", "tcp", "udp", "ethernet", "network"]
 categories = ["embedded", "network-programming"]
 
 [dependencies]
-nix = { version = "0.25", optional = true }
+rustix = { version = "0.35.9", optional = true, features = ["fs", "net"] }
+linux-raw-sys = {version = "0.1", optional = true, features = ["ioctl"] }
 
 [dev-dependencies]
-criterion = { version = "0.3", default_features = false }
+criterion = { version = "0.3.6", default_features = false }
 
 [build-dependencies]
-bindgen = { version = "0.60", optional = true }
+bindgen = { version = "0.60.1", optional = true }
 
 [features]
 default = []
-# eventually want to use rustix
-netdev = ["std", "nix", "bindgen"]
+netdev = ["std", "rustix", "linux-raw-sys"]
 overwrite = [ "bindgen" ]
 std = []
 inline_always = []
