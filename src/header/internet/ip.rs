@@ -203,7 +203,7 @@ pub struct Dscp(pub(crate) u8);
 impl From<Dscp> for u8 {
     #[inline]
     fn from(value: Dscp) -> Self {
-        value.0 as u8
+        value.0
     }
 }
 

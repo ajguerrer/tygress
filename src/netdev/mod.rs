@@ -34,7 +34,7 @@ use core::fmt;
 use core::ops;
 use core::time::Duration;
 
-/// Interface for network hardware capable of sending and receiving data on a given [`Topology`].
+/// Interface for network hardware capable of sending and receiving data on a given [`HardwareType`].
 pub trait NetDev {
     type Error;
     /// Sends a single raw network frame contained in `buf`. `buf` may not be larger than the
@@ -61,17 +61,17 @@ pub trait NetDev {
     ///
     /// `mtu` is calculated once at the beginning of the [NetDev]'s lifetime.
     fn mtu(&self) -> usize;
-    /// Returns network [`Topology`] device operates on. Note, there is no particular requirement on
+    /// Returns network [`HardwareType`] device operates on. Note, there is no particular requirement on
     /// which layers of the Internet Protocol suite a device must support. Rather, it is a function
-    /// of [`Topology`] and [`header`][crate::header] content.
-    fn topology(&self) -> Topology;
+    /// of [`HardwareType`] and [`header`][crate::header] content.
+    fn hw_type(&self) -> HardwareType;
 }
 
-/// The network topology that a [`NetDev`] operates on.
+/// The network hardware that a [`NetDev`] operates on.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum Topology {
-    /// Sends and receives IP packets without a Ethernet header.  
-    Ip,
+pub enum HardwareType {
+    /// Sends and receives IP packets without an attached link layer header.  
+    Opaque,
     /// Sends and receives EthernetII frames (Ip packets with
     /// [`EthernetII`][crate::header::link::EthernetII] header).
     EthernetII,

@@ -11,7 +11,7 @@ use rustix::io::{PollFd, PollFlags};
 use rustix::net::AddressFamily;
 
 use super::Event;
-use super::Topology;
+use super::HardwareType;
 
 #[cfg(all(feature = "bindgen", not(feature = "overwrite")))]
 include!(concat!(env!("OUT_DIR"), "/sys.rs"));
@@ -38,12 +38,12 @@ pub fn ifreq_name(name: &str) -> [c_char; IF_NAMESIZE as usize] {
 
 pub fn ioctl_tunsetiff<Fd: AsFd>(
     fd: Fd,
-    topology: Topology,
+    hw_type: HardwareType,
     ifreq_name: [c_char; IF_NAMESIZE as usize],
 ) -> io::Result<()> {
-    let ifru_flags = match topology {
-        Topology::Ip => IFF_TUN as c_short,
-        Topology::EthernetII => IFF_TAP as c_short,
+    let ifru_flags = match hw_type {
+        HardwareType::Opaque => IFF_TUN as c_short,
+        HardwareType::EthernetII => IFF_TAP as c_short,
     } | IFF_NO_PI as c_short;
 
     let ifreq = ifreq {

@@ -1,8 +1,8 @@
-use tygress::netdev::{Event, NetDev, Topology, TunTapInterface};
+use tygress::netdev::{Event, HardwareType, NetDev, TunTapInterface};
 
 fn main() {
     let name = "tun0";
-    let socket = TunTapInterface::bind(name, Topology::Ip)
+    let socket = TunTapInterface::bind(name, HardwareType::Opaque)
         .unwrap_or_else(|_| panic!("failed to bind {}", name));
     println!("mtu: {}", socket.mtu());
     let mut buf = vec![0; socket.mtu()];

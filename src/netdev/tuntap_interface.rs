@@ -5,7 +5,7 @@ use std::io;
 use std::time::Duration;
 
 use super::{sys, Event};
-use super::{NetDev, Topology};
+use super::{HardwareType, NetDev};
 use rustix::fd::OwnedFd;
 use rustix::fs::{fcntl_setfl, OFlags};
 use rustix::io::{read, write};
@@ -18,7 +18,7 @@ use rustix::net::{socket, AddressFamily, Protocol, SocketType};
 pub struct TunTapInterface {
     fd: OwnedFd,
     mtu: usize,
-    topology: Topology,
+    hw_type: HardwareType,
 }
 
 impl TunTapInterface {
@@ -26,7 +26,7 @@ impl TunTapInterface {
     ///
     /// Depending on the ownership privileges of the interface, superuser privileges or
     /// `CAP_NET_ADMIN` capabilities may be required.
-    pub fn bind(name: &str, topology: Topology) -> io::Result<Self> {
+    pub fn bind(name: &str, hw_type: HardwareType) -> io::Result<Self> {
         let fd = OwnedFd::from(
             OpenOptions::new()
                 .read(true)
@@ -36,12 +36,12 @@ impl TunTapInterface {
         fcntl_setfl(&fd, OFlags::NONBLOCK)?;
 
         let ifreq_name = sys::ifreq_name(name);
-        sys::ioctl_tunsetiff(&fd, topology, ifreq_name)?;
+        sys::ioctl_tunsetiff(&fd, hw_type, ifreq_name)?;
 
         let socket = socket(AddressFamily::INET, SocketType::DGRAM, Protocol::default())?;
         let mtu = sys::ioctl_siocgifmtu(&socket, ifreq_name)?;
 
-        Ok(TunTapInterface { fd, mtu, topology })
+        Ok(TunTapInterface { fd, mtu, hw_type })
     }
 }
 
@@ -69,7 +69,7 @@ impl NetDev for TunTapInterface {
     }
 
     #[inline]
-    fn topology(&self) -> Topology {
-        self.topology
+    fn hw_type(&self) -> HardwareType {
+        self.hw_type
     }
 }

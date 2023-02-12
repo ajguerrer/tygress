@@ -9,7 +9,7 @@ use rustix::net::{
 };
 
 use super::{sys, Event};
-use super::{NetDev, Topology};
+use super::{HardwareType, NetDev};
 
 /// A socket of the AF_PACKET family. [Read more][packet]
 ///
@@ -18,17 +18,17 @@ use super::{NetDev, Topology};
 pub struct PacketSocket {
     fd: OwnedFd,
     mtu: usize,
-    topology: Topology,
+    hw_type: HardwareType,
 }
 
 impl PacketSocket {
     /// Creates a socket with family `AF_PACKET` and binds it to the interface called `name`.
     ///
     /// Requires superuser privileges or the `CAP_NET_RAW` capability.
-    pub fn bind(name: &str, topology: Topology) -> io::Result<Self> {
-        let type_ = match topology {
-            Topology::Ip => SocketType::DGRAM,
-            Topology::EthernetII => SocketType::RAW,
+    pub fn bind(name: &str, hw_type: HardwareType) -> io::Result<Self> {
+        let type_ = match hw_type {
+            HardwareType::Opaque => SocketType::DGRAM,
+            HardwareType::EthernetII => SocketType::RAW,
         };
         let fd = socket_with(
             AddressFamily::PACKET,
@@ -42,7 +42,7 @@ impl PacketSocket {
 
         let mtu = sys::ioctl_siocgifmtu(&fd, ifreq_name)?;
 
-        Ok(PacketSocket { fd, mtu, topology })
+        Ok(PacketSocket { fd, mtu, hw_type })
     }
 }
 
@@ -69,7 +69,7 @@ impl NetDev for PacketSocket {
     }
 
     #[inline]
-    fn topology(&self) -> Topology {
-        self.topology
+    fn hw_type(&self) -> HardwareType {
+        self.hw_type
     }
 }

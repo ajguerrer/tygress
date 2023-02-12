@@ -18,7 +18,7 @@ use crate::driver::waker::NoopWaker;
 use crate::header::internet::{IpVersion, Ipv4};
 use crate::header::link::{EtherType, EthernetII};
 use crate::header::Result;
-use crate::netdev::{Event, NetDev, Topology};
+use crate::netdev::{Event, HardwareType, NetDev};
 
 #[derive(Debug)]
 pub struct Driver<T: NetDev, const MTU: usize>
@@ -36,9 +36,9 @@ where
     /// Creates a new asynchronous I/O driver around a [`NetDev`].
     pub fn new(netdev: T) -> Driver<T, MTU> {
         let mtu = netdev.mtu();
-        let mtu = match netdev.topology() {
-            Topology::Ip => mtu,
-            Topology::EthernetII => mtu + mem::size_of::<EthernetII>(),
+        let mtu = match netdev.hw_type() {
+            HardwareType::Opaque => mtu,
+            HardwareType::EthernetII => mtu + mem::size_of::<EthernetII>(),
         };
         if mtu > MTU {
             panic!("netdev requires {} mtu", mtu);
@@ -84,12 +84,12 @@ where
     fn dispatch(&self) {}
 
     fn process(&self, bytes: &[u8]) -> Result<()> {
-        match self.netdev.topology() {
-            Topology::EthernetII => {
+        match self.netdev.hw_type() {
+            HardwareType::EthernetII => {
                 let (header, bytes) = EthernetII::from_bytes(bytes)?;
                 self.process_ethernet(header, bytes)
             }
-            Topology::Ip => match IpVersion::from_bytes(bytes)? {
+            HardwareType::Opaque => match IpVersion::from_bytes(bytes)? {
                 IpVersion::Ipv4 => {
                     let (header, options, bytes) = Ipv4::from_bytes(bytes)?;
                     self.process_ipv4(header, options, bytes)
