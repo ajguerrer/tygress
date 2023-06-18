@@ -25,10 +25,8 @@ bindgen = { version = "0.60.1", optional = true }
 [features]
 default = []
 netdev = ["std", "rustix", "linux-raw-sys"]
-overwrite = [ "bindgen" ]
+overwrite = ["bindgen"]
 std = []
-inline_always = []
-inline_never = []
 
 [[example]]
 name = "playground"

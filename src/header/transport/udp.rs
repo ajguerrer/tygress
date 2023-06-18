@@ -6,8 +6,8 @@
 use core::fmt;
 
 use crate::header::error::{Error, Result};
-use crate::header::macros::as_header;
 use crate::header::primitive::U16;
+use crate::header::utils::as_header;
 
 /// A UDP header. [Read more][RFC 768]
 ///
@@ -28,15 +28,19 @@ pub struct Udp {
 
 impl Udp {
     #[inline]
-    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
-        let (header, payload) = as_header!(Udp, bytes)?;
+    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
+        let (header, payload) = match as_header!(Udp, bytes) {
+            Some(v) => v,
+            None => return Err(Error::Truncated),
+        };
 
         if header.len() < 8 {
             return Err(Error::Truncated);
         }
 
-        if u16::from(header.cks) != 0 {
+        if header.cks.get() != 0 {
             // TODO: call verify_checksum on pseudo header and payload
+            todo!()
         }
 
         Ok((header, payload))
@@ -44,22 +48,22 @@ impl Udp {
 
     // Returns the source port.
     #[inline]
-    pub fn source_port(&self) -> u16 {
-        u16::from(self.src_port)
+    pub const fn source_port(&self) -> u16 {
+        self.src_port.get()
     }
 
     // Returns the destination port.
     #[inline]
-    pub fn destination_port(&self) -> u16 {
-        u16::from(self.dst_port)
+    pub const fn destination_port(&self) -> u16 {
+        self.dst_port.get()
     }
 
     /// Returns the length of the UDP header and payload in bytes. Will return at least 8, the
     /// length of a UDP header.
     #[inline]
     #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self) -> u16 {
-        u16::from(self.len)
+    pub const fn len(&self) -> u16 {
+        self.len.get()
     }
 }
 

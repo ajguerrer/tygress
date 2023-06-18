@@ -4,7 +4,8 @@
 use core::fmt;
 
 use crate::header::error::{Error, Result};
-use crate::header::macros::as_header;
+use crate::header::primitive::U16;
+use crate::header::utils::{as_header, return_err};
 
 /// An EthernetII frame header. [Read more][RFC 1042]
 ///
@@ -24,29 +25,32 @@ impl EthernetII {
     /// Returns an immutable view of `bytes` as an EthernetII header followed by a payload or an
     /// error if the size or contents do not represent a valid EthernetII header.
     #[inline]
-    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
-        let (header, payload) = as_header!(EthernetII, bytes)?;
+    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
+        let (header, payload) = match as_header!(EthernetII, bytes) {
+            Some(v) => v,
+            None => return Err(Error::Truncated),
+        };
 
-        header.ty.check()?;
+        return_err!(header.ty.verify());
 
         Ok((header, payload))
     }
 
     /// Returns the source Ethernet address.
     #[inline]
-    pub fn source(&self) -> EtherAddr {
+    pub const fn src(&self) -> EtherAddr {
         self.src
     }
 
     /// Returns destination Ethernet address.
     #[inline]
-    pub fn destination(&self) -> EtherAddr {
+    pub const fn dst(&self) -> EtherAddr {
         self.dst
     }
 
     /// Returns the EtherType of frame.
     #[inline]
-    pub fn ethertype(&self) -> EtherType {
+    pub const fn ethertype(&self) -> EtherType {
         self.ty.get()
     }
 }
@@ -55,8 +59,10 @@ impl fmt::Display for EthernetII {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "EthernetII src: {}, dst: {}, type: {}",
-            self.src, self.dst, self.ty
+            "EthernetII ({}) {} → {}",
+            self.ethertype(),
+            self.src(),
+            self.dst(),
         )
     }
 }
@@ -76,14 +82,14 @@ impl EtherAddr {
 
     /// Create an EtherAddr from six network endian octets.
     #[inline]
-    pub fn new(bytes: [u8; 6]) -> Self {
+    pub const fn new(bytes: [u8; 6]) -> Self {
         Self(bytes)
     }
 
     /// Convert EtherAddr to a sequence of octets. Bytes are network endian.
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_ref()
+    pub const fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 
     /// Returns `true` if EtherAddr is a individual unicast address.
@@ -174,21 +180,21 @@ impl fmt::Display for EtherType {
     }
 }
 
-/// An array representing [`EtherType`] cast from a slice of bytes instead of constructed. It is
-/// assumed that [`check`][EtherTypeRepr::check] is called directly after casting before any other
+/// Representation of [`EtherType`] cast from a slice of bytes instead of constructed. It is assumed
+/// that [`verify`][EtherTypeRepr::verify] is called directly after casting before any other
 /// methods are called.
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[repr(transparent)]
-struct EtherTypeRepr([u8; 2]);
+pub(crate) struct EtherTypeRepr(U16);
 
 impl EtherTypeRepr {
-    const IPV4: EtherTypeRepr = EtherTypeRepr(u16::to_be_bytes(EtherType::Ipv4 as u16));
-    const ARP: EtherTypeRepr = EtherTypeRepr(u16::to_be_bytes(EtherType::Arp as u16));
-    const IPV6: EtherTypeRepr = EtherTypeRepr(u16::to_be_bytes(EtherType::Ipv6 as u16));
+    const IPV4: EtherTypeRepr = EtherTypeRepr(U16::new(EtherType::Ipv4 as u16));
+    const ARP: EtherTypeRepr = EtherTypeRepr(U16::new(EtherType::Arp as u16));
+    const IPV6: EtherTypeRepr = EtherTypeRepr(U16::new(EtherType::Ipv6 as u16));
 
     /// Check inner self for validity.
     #[inline]
-    const fn check(&self) -> Result<()> {
+    pub(crate) const fn verify(&self) -> Result<()> {
         match *self {
             Self::IPV4 | Self::ARP | Self::IPV6 => Ok(()),
             _ => Err(Error::Unsupported),
@@ -197,7 +203,7 @@ impl EtherTypeRepr {
 
     /// Get the underlying [`EtherType`].
     #[inline]
-    const fn get(&self) -> EtherType {
+    pub(crate) const fn get(&self) -> EtherType {
         match *self {
             Self::IPV4 => EtherType::Ipv4,
             Self::ARP => EtherType::Arp,
@@ -210,19 +216,12 @@ impl EtherTypeRepr {
 impl From<EtherType> for EtherTypeRepr {
     #[inline]
     fn from(value: EtherType) -> Self {
-        EtherTypeRepr(u16::to_be_bytes(value as u16))
-    }
-}
-
-impl fmt::Display for EtherTypeRepr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.get(), f)
+        EtherTypeRepr(U16::new(value as u16))
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]

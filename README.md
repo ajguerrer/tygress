@@ -7,7 +7,7 @@ A library implementing popular networking transport protocols in user space with
 - **Correct, and comprehensive** - The primary goal is create a network stack that works. Rusts
   world-class type system is used at every opportunity to properly capture the constraints of the
   network stack detailed in the [IETF RFCs][rfc]. From the link layer to the transport layer, the
-  following transport protocols are supported:
+  following transport protocols shall be supported:
     - UDP
     - TCP
     - QUIC

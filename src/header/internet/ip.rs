@@ -1,6 +1,9 @@
 use core::fmt;
 
-use crate::header::error::{Error, Result};
+use crate::header::{
+    error::{Error, Result},
+    primitive::U8,
+};
 
 /// An IP version number.
 ///
@@ -68,15 +71,15 @@ impl fmt::Display for IpVersion {
 #[repr(u8)]
 pub enum IpProtocol {
     HopByHop = 0x00,
-    Icmp = 0x01,
-    Igmp = 0x02,
-    Tcp = 0x06,
-    Udp = 0x11,
-    Ipv6Route = 0x2b,
-    Ipv6Frag = 0x2c,
-    Icmpv6 = 0x3a,
-    Ipv6NoNxt = 0x3b,
-    Ipv6Opts = 0x3c,
+    ICMP = 0x01,
+    IGMP = 0x02,
+    TCP = 0x06,
+    UDP = 0x11,
+    IPv6Route = 0x2b,
+    IPv6Frag = 0x2c,
+    ICMPv6 = 0x3a,
+    IPv6NoNxt = 0x3b,
+    IPv6Opts = 0x3c,
 }
 
 impl From<IpProtocol> for u8 {
@@ -93,15 +96,15 @@ impl TryFrom<u8> for IpProtocol {
     fn try_from(value: u8) -> Result<Self> {
         match value {
             value if value == Self::HopByHop as u8 => Ok(Self::HopByHop),
-            value if value == Self::Icmp as u8 => Ok(Self::Icmp),
-            value if value == Self::Igmp as u8 => Ok(Self::Igmp),
-            value if value == Self::Tcp as u8 => Ok(Self::Tcp),
-            value if value == Self::Udp as u8 => Ok(Self::Udp),
-            value if value == Self::Ipv6Route as u8 => Ok(Self::Ipv6Route),
-            value if value == Self::Ipv6Frag as u8 => Ok(Self::Ipv6Frag),
-            value if value == Self::Icmpv6 as u8 => Ok(Self::Icmpv6),
-            value if value == Self::Ipv6NoNxt as u8 => Ok(Self::Ipv6NoNxt),
-            value if value == Self::Ipv6Opts as u8 => Ok(Self::Ipv6Opts),
+            value if value == Self::ICMP as u8 => Ok(Self::ICMP),
+            value if value == Self::IGMP as u8 => Ok(Self::IGMP),
+            value if value == Self::TCP as u8 => Ok(Self::TCP),
+            value if value == Self::UDP as u8 => Ok(Self::UDP),
+            value if value == Self::IPv6Route as u8 => Ok(Self::IPv6Route),
+            value if value == Self::IPv6Frag as u8 => Ok(Self::IPv6Frag),
+            value if value == Self::ICMPv6 as u8 => Ok(Self::ICMPv6),
+            value if value == Self::IPv6NoNxt as u8 => Ok(Self::IPv6NoNxt),
+            value if value == Self::IPv6Opts as u8 => Ok(Self::IPv6Opts),
             _ => Err(Error::Unsupported),
         }
     }
@@ -114,27 +117,27 @@ impl fmt::Display for IpProtocol {
 }
 
 /// An array representing [`Protocol`] cast from a slice of bytes instead of constructed. It is
-/// assumed that [`check`][ProtocolRepr::check] is called directly after casting before any other
+/// assumed that [`verify`][ProtocolRepr::verify] is called directly after casting before any other
 /// methods are called.
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[repr(transparent)]
-pub(crate) struct ProtocolRepr([u8; 1]);
+pub(crate) struct ProtocolRepr(U8);
 
 impl ProtocolRepr {
-    const HOPBYHOP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::HopByHop as u8));
-    const ICMP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Icmp as u8));
-    const IGMP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Igmp as u8));
-    const TCP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Tcp as u8));
-    const UDP: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Udp as u8));
-    const IPV6ROUTE: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Ipv6Route as u8));
-    const IPV6FRAG: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Ipv6Frag as u8));
-    const ICMPV6: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Icmpv6 as u8));
-    const IPV6NONXT: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Ipv6NoNxt as u8));
-    const IPV6OPTS: ProtocolRepr = ProtocolRepr(u8::to_be_bytes(IpProtocol::Ipv6Opts as u8));
+    const HOPBYHOP: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::HopByHop as u8));
+    const ICMP: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::ICMP as u8));
+    const IGMP: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::IGMP as u8));
+    const TCP: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::TCP as u8));
+    const UDP: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::UDP as u8));
+    const IPV6ROUTE: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::IPv6Route as u8));
+    const IPV6FRAG: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::IPv6Frag as u8));
+    const ICMPV6: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::ICMPv6 as u8));
+    const IPV6NONXT: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::IPv6NoNxt as u8));
+    const IPV6OPTS: ProtocolRepr = ProtocolRepr(U8::new(IpProtocol::IPv6Opts as u8));
 
     /// Check inner self for validity.
     #[inline]
-    pub(crate) const fn check(&self) -> Result<()> {
+    pub(crate) const fn verify(&self) -> Result<()> {
         match *self {
             Self::HOPBYHOP
             | Self::ICMP
@@ -155,15 +158,15 @@ impl ProtocolRepr {
     pub(crate) const fn get(&self) -> IpProtocol {
         match *self {
             Self::HOPBYHOP => IpProtocol::HopByHop,
-            Self::ICMP => IpProtocol::Icmp,
-            Self::IGMP => IpProtocol::Igmp,
-            Self::TCP => IpProtocol::Tcp,
-            Self::UDP => IpProtocol::Udp,
-            Self::IPV6ROUTE => IpProtocol::Ipv6Route,
-            Self::IPV6FRAG => IpProtocol::Ipv6Frag,
-            Self::ICMPV6 => IpProtocol::Icmpv6,
-            Self::IPV6NONXT => IpProtocol::Ipv6NoNxt,
-            Self::IPV6OPTS => IpProtocol::Ipv6Opts,
+            Self::ICMP => IpProtocol::ICMP,
+            Self::IGMP => IpProtocol::IGMP,
+            Self::TCP => IpProtocol::TCP,
+            Self::UDP => IpProtocol::UDP,
+            Self::IPV6ROUTE => IpProtocol::IPv6Route,
+            Self::IPV6FRAG => IpProtocol::IPv6Frag,
+            Self::ICMPV6 => IpProtocol::ICMPv6,
+            Self::IPV6NONXT => IpProtocol::IPv6NoNxt,
+            Self::IPV6OPTS => IpProtocol::IPv6Opts,
             _ => unreachable!(),
         }
     }
@@ -172,7 +175,7 @@ impl ProtocolRepr {
 impl From<IpProtocol> for ProtocolRepr {
     #[inline]
     fn from(value: IpProtocol) -> Self {
-        ProtocolRepr(u8::to_be_bytes(value as u8))
+        ProtocolRepr(U8::new(value as u8))
     }
 }
 
@@ -182,7 +185,7 @@ impl fmt::Display for ProtocolRepr {
     }
 }
 
-/// A Differentiated Services Codepoint (DSCP). [Read more][RFC 2474]
+/// A Differentiated Services codepoint (DSCP). [Read more][RFC 2474]
 ///
 /// DSCP selects the per-hop behavior (PHB) a packet experiences at each node.
 ///
@@ -337,13 +340,26 @@ impl fmt::Display for StdDscp {
 #[repr(u8)]
 pub enum Ecn {
     /// Non ECN-Capable Transport
-    NonEct = 0b00,
+    NonECT = 0b00,
     /// ECN Capable Transport 0
-    Ect0 = 0b10,
+    ECT0 = 0b10,
     /// ECN Capable Transport 1
-    Ect1 = 0b01,
+    ECT1 = 0b01,
     /// Congestion Encountered
-    Ce = 0b11,
+    CE = 0b11,
+}
+
+impl Ecn {
+    #[inline]
+    pub(crate) const fn new(value: u8) -> Result<Self> {
+        match value {
+            value if value == Self::NonECT as u8 => Ok(Self::NonECT),
+            value if value == Self::ECT0 as u8 => Ok(Self::ECT0),
+            value if value == Self::ECT1 as u8 => Ok(Self::ECT1),
+            value if value == Self::CE as u8 => Ok(Self::CE),
+            _ => Err(Error::Malformed),
+        }
+    }
 }
 
 impl From<Ecn> for u8 {
@@ -358,13 +374,7 @@ impl TryFrom<u8> for Ecn {
 
     #[inline]
     fn try_from(value: u8) -> Result<Self> {
-        match value {
-            value if value == Self::NonEct as u8 => Ok(Self::NonEct),
-            value if value == Self::Ect0 as u8 => Ok(Self::Ect0),
-            value if value == Self::Ect1 as u8 => Ok(Self::Ect1),
-            value if value == Self::Ce as u8 => Ok(Self::Ce),
-            _ => Err(Error::Unsupported),
-        }
+        Ecn::new(value)
     }
 }
 

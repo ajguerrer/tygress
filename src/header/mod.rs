@@ -17,8 +17,9 @@ pub mod internet;
 pub mod link;
 pub mod transport;
 
+pub(crate) mod checksum;
 mod error;
-pub(crate) mod macros;
 pub(crate) mod primitive;
+pub(crate) mod utils;
 
 pub use error::{Error, Result};

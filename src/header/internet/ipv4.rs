@@ -2,12 +2,15 @@
 //!
 //! [`Ipv4`] header supporting 32-bit addressing (see [`Ipv4Addr`]) and fragmentation.
 use core::fmt;
+use core::mem::size_of;
 
+use crate::header::checksum::verify_checksum;
 use crate::header::error::{Error, Result};
-use crate::header::macros::{as_header, verify_checksum};
 use crate::header::primitive::{U16, U8};
+use crate::header::utils::{as_header, return_err, return_err_if, split_at};
 
 use super::ip::{Dscp, Ecn, IpProtocol, IpVersion, ProtocolRepr};
+use super::StdDscp;
 
 /// An IPv4 header. [Read more][RFC 791]
 ///
@@ -27,7 +30,7 @@ pub struct Ipv4 {
     diff_serv: DiffServ,
     tlen: U16,
     id: U16,
-    flgs_ofst: FlagsFragOffset,
+    flag_frag: FlagsFragOffset,
     ttl: U8,
     proto: ProtocolRepr,
     cks: U16,
@@ -38,117 +41,125 @@ pub struct Ipv4 {
 impl Ipv4 {
     /// Returns an immutable view if `bytes` an an IPv4 header followed by a payload or an error if
     /// the size or contents do not represent a valid IPv4 header. Since IPv4 options are dynamic in
-    /// length, they are not included in the header and are instead returned as part of the payload.
+    /// length, they are not included in the header and are instead returned as a split payload.
     #[inline]
-    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8], &[u8])> {
-        let (header, options_payload) = as_header!(Ipv4, bytes)?;
+    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8], &[u8])> {
+        let (header, options_payload) = match as_header!(Ipv4, bytes) {
+            Some(v) => v,
+            None => return Err(Error::Truncated),
+        };
 
-        if header.ver_ihl.version() != 4 {
-            return Err(Error::Unsupported);
+        return_err!(header.ver_ihl.verify());
+        return_err!(header.diff_serv.verify());
+        return_err!(header.flag_frag.verify());
+        return_err!(header.proto.verify());
+
+        let full_header = match split_at(bytes, header.header_len()) {
+            Some(v) => v,
+            None => return Err(Error::Truncated),
         }
+        .0;
+        return_err!(verify_checksum(full_header));
 
-        // options_payload starts with some amount of Ipv4 options if any. Check their length.
-        if options_payload.len() < usize::from(header.options_len()) {
-            return Err(Error::Truncated);
-        }
+        let (options, payload) = match split_at(options_payload, header.options_len()) {
+            Some(v) => v,
+            None => return Err(Error::Truncated),
+        };
 
-        if header.flgs_ofst.flags() > 3 {
-            return Err(Error::Malformed);
-        }
+        return_err_if!(header.total_len() as usize != bytes.len(), Error::Truncated);
 
-        header.proto.check()?;
-
-        verify_checksum(&bytes[..header.header_len().into()])?;
-
-        let (options, payload) = options_payload.split_at(header.options_len().into());
         Ok((header, options, payload))
     }
 
     /// Always returns [`IpVersion::Ipv4`].
     #[inline]
-    pub fn version(&self) -> IpVersion {
-        IpVersion::Ipv4
+    pub const fn version(&self) -> IpVersion {
+        self.ver_ihl.version()
     }
 
     /// Returns the length of the IPv4 header in bytes. At a minimum, the length of a header with no
     /// options is 20 bytes. A header with the maximum amount of options/padding has a length of 60
     /// bytes.
     #[inline]
-    pub fn header_len(&self) -> u8 {
+    pub const fn header_len(&self) -> usize {
         self.ver_ihl.header_len() * 4
     }
 
     /// Returns the length of the IPv4 options in bytes. Options are optional. A header may have up
     /// to 40 bytes of options.
     #[inline]
-    pub fn options_len(&self) -> u8 {
+    pub const fn options_len(&self) -> usize {
         // Options start after 20 bytes of header
-        (self.ver_ihl.header_len() * 4).saturating_sub(20)
+        (self.ver_ihl.header_len() * 4).saturating_sub(size_of::<Ipv4>())
+    }
+
+    /// Returns Differentiated Services codepoint (DSCP) used to classify and manage network traffic.
+    #[inline]
+    pub const fn dscp(&self) -> Dscp {
+        self.diff_serv.dscp()
+    }
+
+    /// Returns Explicit Congestion Notification (ECN) an optional feature used to indicate
+    /// impending network traffic congestion.
+    #[inline]
+    pub const fn ecn(&self) -> Ecn {
+        self.diff_serv.ecn()
+    }
+
+    /// Returns the total length of the IPv4 packet. Does not include link layer header.
+    ///
+    /// Note: for fragmented packets, total length indicates the length of the fragment, not the
+    /// assembled packet.
+    #[inline]
+    pub const fn total_len(&self) -> u16 {
+        self.tlen.get()
+    }
+
+    /// Returns ID of the IPv4 packet. Fragments with the same ID are assembled together.
+    #[inline]
+    pub const fn id(&self) -> u16 {
+        self.id.get()
     }
 
     /// Returns destination IPv4 address.
     #[inline]
-    pub fn dscp(&self) -> Dscp {
-        Dscp(self.diff_serv.dscp())
+    pub const fn flags(&self) -> Ipv4Flags {
+        self.flag_frag.flags()
     }
 
     /// Returns destination IPv4 address.
     #[inline]
-    pub fn ecn(&self) -> Ecn {
-        Ecn::try_from(self.diff_serv.ecn()).unwrap()
-    }
-
-    /// Returns the total length of the assembled IPv4 packet. Does not include link layer header.
-    #[inline]
-    pub fn total_len(&self) -> u16 {
-        u16::from(self.tlen)
-    }
-
-    /// Returns fragmentation ID of the IPv4 packet.
-    #[inline]
-    pub fn id(&self) -> u16 {
-        u16::from(self.id)
+    pub const fn offset(&self) -> u16 {
+        self.flag_frag.frag_offset()
     }
 
     /// Returns destination IPv4 address.
     #[inline]
-    pub fn flags(&self) -> Ipv4Flags {
-        Ipv4Flags::try_from(self.flgs_ofst.flags()).unwrap()
+    pub const fn ttl(&self) -> u8 {
+        self.ttl.get()
     }
 
     /// Returns destination IPv4 address.
     #[inline]
-    pub fn frag_offset(&self) -> u16 {
-        self.flgs_ofst.frag_offset()
-    }
-
-    /// Returns destination IPv4 address.
-    #[inline]
-    pub fn ttl(&self) -> u8 {
-        u8::from(self.ttl)
-    }
-
-    /// Returns destination IPv4 address.
-    #[inline]
-    pub fn protocol(&self) -> IpProtocol {
+    pub const fn protocol(&self) -> IpProtocol {
         self.proto.get()
     }
 
     /// Returns destination IPv4 address.
     #[inline]
-    pub fn checksum(&self) -> u16 {
-        u16::from(self.cks)
+    pub const fn cks(&self) -> u16 {
+        self.cks.get()
     }
 
     /// Returns source IPv4 address.
     #[inline]
-    pub fn source(&self) -> Ipv4Addr {
+    pub const fn src(&self) -> Ipv4Addr {
         self.src
     }
 
     /// Returns destination IPv4 address.
     #[inline]
-    pub fn destination(&self) -> Ipv4Addr {
+    pub const fn dst(&self) -> Ipv4Addr {
         self.dst
     }
 }
@@ -157,9 +168,36 @@ impl fmt::Display for Ipv4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "IPv4 proto: {}, src: {}, dst: {}, len: {}, ttl: {}, flags: {}, dscp: {}, ecn: {}, id: {}, offset: {}",
-            self.protocol(), self.source(), self.destination(), self.total_len(), self.ttl(), self.flags(), self.dscp(), self.ecn(), self.id(), self.frag_offset()
-        )
+            "IPv4 ({}) {} → {} ttl={} len={}",
+            self.protocol(),
+            self.src(),
+            self.dst(),
+            self.ttl(),
+            self.total_len(),
+        )?;
+        if self.options_len() != 0 {
+            write!(f, "({})", self.options_len())?;
+        }
+
+        match (self.flags(), self.offset()) {
+            (Ipv4Flags::DontFrag, _) | (Ipv4Flags::LastFrag, 0) => {
+                write!(f, " flags={}", self.flags())?
+            }
+            (flags, offset) => write!(f, " flags={flags} (id={:#x} offset={offset})", self.id())?,
+        };
+
+        match self.ecn() {
+            Ecn::NonECT => {}
+            ecn => write!(f, " ecn={ecn}")?,
+        };
+
+        match StdDscp::try_from(self.dscp()) {
+            Ok(StdDscp::CS0) => {}
+            Ok(dscp) => write!(f, " dscp={dscp}")?,
+            Err(_) => write!(f, " dscp={}", self.dscp())?,
+        };
+
+        Ok(())
     }
 }
 
@@ -190,8 +228,8 @@ impl Ipv4Addr {
 
     /// Convert Ipv4Addr to a sequence of octets. Bytes are network endian.
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_ref()
+    pub const fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 
     /// Returns `true` if address is the 'unspecified', also known as the 'any' address.
@@ -333,6 +371,19 @@ pub enum Ipv4Flags {
     LastFrag = 0b000,
     MoreFrag = 0b001,
     DontFrag = 0b010,
+    // 0b011 is invalid
+}
+
+impl Ipv4Flags {
+    #[inline]
+    pub(crate) const fn new(value: u8) -> Result<Self> {
+        match value {
+            value if value == Self::LastFrag as u8 => Ok(Self::LastFrag),
+            value if value == Self::MoreFrag as u8 => Ok(Self::MoreFrag),
+            value if value == Self::DontFrag as u8 => Ok(Self::DontFrag),
+            _ => Err(Error::Malformed),
+        }
+    }
 }
 
 impl From<Ipv4Flags> for u8 {
@@ -347,18 +398,17 @@ impl TryFrom<u8> for Ipv4Flags {
 
     #[inline]
     fn try_from(value: u8) -> Result<Self> {
-        match value {
-            value if value == Self::LastFrag as u8 => Ok(Self::LastFrag),
-            value if value == Self::MoreFrag as u8 => Ok(Self::MoreFrag),
-            value if value == Self::DontFrag as u8 => Ok(Self::DontFrag),
-            _ => Err(Error::Unsupported),
-        }
+        Ipv4Flags::new(value)
     }
 }
 
 impl fmt::Display for Ipv4Flags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self, f)
+        match self {
+            Ipv4Flags::LastFrag => write!(f, "LF"),
+            Ipv4Flags::MoreFrag => write!(f, "MF"),
+            Ipv4Flags::DontFrag => write!(f, "DF"),
+        }
     }
 }
 
@@ -369,31 +419,36 @@ impl fmt::Display for Ipv4Flags {
 /// +-+-+-+-+-+-+-+-+
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
-struct VerIhl([u8; 1]);
+struct VerIhl(U8);
 
 impl VerIhl {
+    #[inline]
+    pub(crate) const fn verify(&self) -> Result<()> {
+        // version must be 4
+        // minimum header length must be at least 5
+        if self._version() != 4 && self.header_len() < 5 {
+            return Err(Error::Malformed);
+        }
+
+        Ok(())
+    }
+
+    // Returns a `u4`
+    #[inline]
+    const fn _version(&self) -> u8 {
+        (self.0.get() & 0b1111_0000) >> 4
+    }
+
+    /// Returns [`IpVersion::Ipv4`]
+    #[inline]
+    pub const fn version(&self) -> IpVersion {
+        IpVersion::Ipv4
+    }
+
     /// Returns a `u4`
     #[inline]
-    pub fn version(&self) -> u8 {
-        (self.0[0] & 0b1111_0000) >> 4
-    }
-
-    /// Assumes `value` is a `u4`
-    #[inline]
-    pub fn _set_version(&mut self, value: u8) {
-        self.0[0] = (self.0[0] & 0b0000_1111) | (value << 4);
-    }
-
-    /// Returns a `u4`
-    #[inline]
-    pub fn header_len(&self) -> u8 {
-        self.0[0] & 0b0000_1111
-    }
-
-    /// Assumes `value` is a `u4`
-    #[inline]
-    pub fn _set_header_len(&mut self, value: u8) {
-        self.0[0] = (self.0[0] & 0b1111_0000) | (value & 0b0000_1111);
+    pub const fn header_len(&self) -> usize {
+        (self.0.get() & 0b0000_1111) as usize
     }
 }
 
@@ -404,31 +459,27 @@ impl VerIhl {
 /// +-+-+-+-+-+-+-+-+
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
-struct DiffServ([u8; 1]);
+struct DiffServ(U8);
 
 impl DiffServ {
-    /// Returns a `u6`
-    #[inline]
-    pub fn dscp(&self) -> u8 {
-        (self.0[0] & 0b1111_1100) >> 2
+    pub(crate) const fn verify(&self) -> Result<()> {
+        // nothing to check here
+        Ok(())
     }
 
-    /// Assumes `value` is a `u6`
+    /// Returns a `u6`
     #[inline]
-    pub fn _set_dscp(&mut self, value: u8) {
-        self.0[0] = (self.0[0] & 0b0000_0011) | (value << 2);
+    pub const fn dscp(&self) -> Dscp {
+        Dscp((self.0.get() & 0b1111_1100) >> 2)
     }
 
     /// Returns a `u2`
     #[inline]
-    pub fn ecn(&self) -> u8 {
-        self.0[0] & 0b0000_0011
-    }
-
-    /// Assumes `value` is a `u2`
-    #[inline]
-    pub fn _set_ecn(&mut self, value: u8) {
-        self.0[0] = (self.0[0] & 0b1111_1100) | (value & 0b0000_0011);
+    pub const fn ecn(&self) -> Ecn {
+        match Ecn::new(self.0.get() & 0b0000_0011) {
+            Ok(ecn) => ecn,
+            Err(_) => unreachable!(),
+        }
     }
 }
 
@@ -439,33 +490,48 @@ impl DiffServ {
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
-struct FlagsFragOffset([u8; 2]);
+struct FlagsFragOffset(U16);
+
+const FLAG_MASK: u16 = 0b1110_0000_0000_0000;
+const FLAG_SHIFT: usize = 13;
+
+const FRAG_OFFSET_MASK: u16 = 0b0001_1111_1111_1111;
+const FRAG_OFFSET_SHIFT: usize = 0;
 
 impl FlagsFragOffset {
+    pub(crate) const fn verify(&self) -> Result<()> {
+        if let Err(e) = Ipv4Flags::new(self._flags()) {
+            return Err(e);
+        }
+
+        // all values of fragment offset are valid
+        Ok(())
+    }
+
     /// Returns a `u3`
     #[inline]
-    pub fn flags(&self) -> u8 {
-        (self.0[0] & 0b1110_0000) >> 5
+    pub const fn flags(&self) -> Ipv4Flags {
+        match Ipv4Flags::new(self._flags()) {
+            Ok(flags) => flags,
+            Err(_) => unreachable!(),
+        }
     }
 
-    /// Assumes `value` is a `u3`
     #[inline]
-    pub fn _set_flags(&mut self, value: u8) {
-        self.0[0] = (self.0[0] & 0b0001_1111) | (value << 5);
+    pub const fn frag_offset(&self) -> u16 {
+        self._frag_offset()
     }
 
-    /// Returns a `u13`
+    // Returns a `u3`
     #[inline]
-    pub fn frag_offset(&self) -> u16 {
-        u16::from_be_bytes(self.0) & 0b0001_1111_1111_1111
+    pub const fn _flags(&self) -> u8 {
+        ((self.0.get() & FLAG_MASK) >> FLAG_SHIFT) as u8
     }
 
-    /// Assumes `value` is a `u13`
+    // Returns a `u13`
     #[inline]
-    pub fn _set_frag_offset(&mut self, value: u16) {
-        let bytes = u16::to_be_bytes(value);
-        self.0[0] = (self.0[0] & 0b1110_0000) | (bytes[0] & 0b0001_1111);
-        self.0[1] = bytes[1];
+    pub const fn _frag_offset(&self) -> u16 {
+        (self.0.get() & FRAG_OFFSET_MASK) >> FRAG_OFFSET_SHIFT
     }
 }
 
