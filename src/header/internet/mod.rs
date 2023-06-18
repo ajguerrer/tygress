@@ -6,8 +6,10 @@
 //!
 //! [RFC 1122]: https://tools.ietf.org/html/rfc1122#section-3
 
+mod arp;
 mod ip;
 mod ipv4;
 
+pub use arp::*;
 pub use ip::*;
 pub use ipv4::*;
