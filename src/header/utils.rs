@@ -23,8 +23,9 @@
 ///   instead of panicking, an Error is returned.
 macro_rules! as_header {
     ($header:ty, $bytes:ident) => {{
+        // check if header type is unaligned at compile time
         const _: () = if ::core::mem::align_of::<$header>() != 1 {
-        panic!("{}", stringify!(align_of<$header> != 1))
+            panic!("{}", stringify!(align_of<$header> != 1))
         };
 
         // Safety: verify_header makes sure bytes.len() are at least
@@ -34,36 +35,14 @@ macro_rules! as_header {
             // Safety: There are enough $bytes to fill $header and $header meets alignment and padding
             // constraints.
             #[allow(unsafe_code)]
-            let header = unsafe { &*(header.as_ptr() as *const Self) };
-            Some((header, payload))
+            let header = unsafe { &*(header.as_ptr() as *const $header) };
+            Ok((header, payload))
         } else {
-            None
+            Err($crate::header::error::HeaderTruncated)
         }
     }};
 }
-
 pub(crate) use as_header;
-
-/// If expression yields an error, return error without type conversion. Useful for using something
-/// that works like '?' but inside const fn impls.
-macro_rules! return_err {
-    ($maybe_err:expr) => {
-        if let Err(e) = $maybe_err {
-            return Err(e);
-        }
-    };
-}
-pub(crate) use return_err;
-
-/// Return early with an error if a condition is satisfied
-macro_rules! return_err_if {
-    ($cond:expr, $err:expr) => {
-        if $cond {
-            return Err($err);
-        }
-    };
-}
-pub(crate) use return_err_if;
 
 #[inline]
 pub(crate) const fn split_word(slice: &[u8]) -> Option<(u16, &[u8])> {

@@ -1,38 +1,24 @@
-use core::{fmt, mem::size_of};
+use core::fmt;
 
 use super::Ipv4Addr;
 use crate::header::{
+    error::HeaderTruncated,
     link::{EtherAddr, EtherType as Protocol, EtherTypeRepr as ProtocolRepr},
-    primitive::{U16, U8},
-    utils::{as_header, return_err, return_err_if},
-    Error, Result,
+    primitive::{non_exhaustive_enum, U16, U8},
+    utils::as_header,
 };
 
-#[non_exhaustive]
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-#[repr(u16)]
-pub enum Hardware {
+non_exhaustive_enum! {
+pub enum Hardware(u16) {
     Ethernet = 1,
 }
-
-impl fmt::Display for Hardware {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self, f)
-    }
 }
 
-#[non_exhaustive]
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-#[repr(u16)]
-pub enum Operation {
+non_exhaustive_enum! {
+pub enum Operation(u16) {
     Request = 1,
     Reply = 2,
 }
-
-impl fmt::Display for Operation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self, f)
-    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -56,35 +42,13 @@ pub struct Arp {
 /// is known as a gratuitous ARP (GARP).
 ///
 /// Though ARP has plenty of room for future hardware and protocol types, in practice ARP is only
-/// used to resolve Ethernet addresses from Ipv4 addresses. Validation will fail if any other
-/// hardware or protocol types are used.
+/// used to resolve Ethernet addresses from Ipv4 addresses.
 impl Arp {
     /// Returns an immutable view of `bytes` as an Arp header followed by a payload or an error if
     /// the size or contents do not represent a valid Arp header.
     #[inline]
-    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
-        let (header, payload) = match as_header!(Arp, bytes) {
-            Some(v) => v,
-            None => return Err(Error::Truncated),
-        };
-
-        return_err!(header.htype.verify());
-        return_err!(header.ptype.verify());
-        return_err_if!(
-            header.ptype.get() as u16 != Protocol::Ipv4 as u16,
-            Error::Unsupported
-        );
-        return_err!(header.oper.verify());
-        return_err_if!(
-            header.hlen.get() as usize != size_of::<EtherAddr>(),
-            Error::Unsupported
-        );
-        return_err_if!(
-            header.plen.get() as usize != size_of::<Ipv4Addr>(),
-            Error::Unsupported
-        );
-
-        Ok((header, payload))
+    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8]), HeaderTruncated> {
+        as_header!(Arp, bytes)
     }
 
     /// Link layer hardware type, always [`Hardware::Ethernet`].
@@ -156,39 +120,23 @@ impl fmt::Display for Arp {
     }
 }
 
-/// Representation of [`Hardware`] cast from a slice of bytes instead of constructed. It is assumed
-/// that [`verify`][HardwareRepr::verify] is called directly after casting before any other
-/// methods are called.
+/// Representation of [`Hardware`] cast from a slice of bytes instead of constructed.
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[repr(transparent)]
 struct HardwareRepr(U16);
 
 impl HardwareRepr {
-    const ETHERNET: HardwareRepr = HardwareRepr(U16::new(Hardware::Ethernet as u16));
-
-    /// Check inner self for validity.
-    #[inline]
-    pub(crate) const fn verify(&self) -> Result<()> {
-        match *self {
-            Self::ETHERNET => Ok(()),
-            _ => Err(Error::Unsupported),
-        }
-    }
-
     /// Get the underlying [`Hardware`].
     #[inline]
     pub(crate) const fn get(&self) -> Hardware {
-        match *self {
-            Self::ETHERNET => Hardware::Ethernet,
-            _ => unreachable!(),
-        }
+        Hardware::new(self.0.get())
     }
 }
 
 impl From<Hardware> for HardwareRepr {
     #[inline]
     fn from(value: Hardware) -> Self {
-        HardwareRepr(U16::from(value as u16))
+        HardwareRepr(U16::from(value.get()))
     }
 }
 
@@ -198,41 +146,23 @@ impl fmt::Display for HardwareRepr {
     }
 }
 
-/// Representation of [`Operation`] cast from a slice of bytes instead of constructed. It is assumed
-/// that [`verify`][OperationRepr::verify] is called directly after casting before any other
-/// methods are called.
+/// Representation of [`Operation`] cast from a slice of bytes instead of constructed.
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[repr(transparent)]
 struct OperationRepr(U16);
 
 impl OperationRepr {
-    const REQUEST: OperationRepr = OperationRepr(U16::new(Operation::Request as u16));
-    const REPLY: OperationRepr = OperationRepr(U16::new(Operation::Reply as u16));
-
-    /// Check inner self for validity.
-    #[inline]
-    pub(crate) const fn verify(&self) -> Result<()> {
-        match *self {
-            Self::REQUEST | Self::REPLY => Ok(()),
-            _ => Err(Error::Unsupported),
-        }
-    }
-
     /// Get the underlying [`Operation`].
     #[inline]
     pub(crate) const fn get(&self) -> Operation {
-        match *self {
-            Self::REQUEST => Operation::Request,
-            Self::REPLY => Operation::Reply,
-            _ => unreachable!(),
-        }
+        Operation::new(self.0.get())
     }
 }
 
 impl From<Hardware> for OperationRepr {
     #[inline]
     fn from(value: Hardware) -> Self {
-        OperationRepr(U16::from(value as u16))
+        OperationRepr(U16::from(value.get()))
     }
 }
 
@@ -249,6 +179,6 @@ mod tests {
     #[test]
     fn short_header() {
         let bytes = [0; 27];
-        assert_eq!(Arp::from_bytes(&bytes).unwrap_err(), Error::Truncated);
+        assert_eq!(Arp::from_bytes(&bytes).unwrap_err(), HeaderTruncated);
     }
 }

@@ -1,11 +1,11 @@
-use super::{utils::split_word, Error, Result};
+use super::{error::ChecksumAssertion, utils::split_word};
 
 #[inline]
-pub const fn verify_checksum(bytes: &[u8]) -> Result<()> {
+pub const fn verify_checksum(bytes: &[u8]) -> Result<(), ChecksumAssertion> {
     if compute_checksum(bytes) == !0 {
         Ok(())
     } else {
-        Err(Error::Checksum)
+        Err(ChecksumAssertion)
     }
 }
 
@@ -71,14 +71,14 @@ mod tests {
             0x0a, 0x63, 0xac, 0x10, 0x0a, 0x0c,
         ];
 
-        assert_eq!(verify_checksum(&bytes), Err(Error::Checksum));
+        assert_eq!(verify_checksum(&bytes), Err(ChecksumAssertion));
 
         let bytes = [
             0x45, 0x00, 0x00, 0x73, 0x00, 0x00, 0x40, 0x00, 0x40, 0x10, 0xb8, 0x61, 0xc0, 0xa8,
             0x00, 0x01, 0xc0, 0xa8, 0x00, 0xc7,
         ];
 
-        assert_eq!(verify_checksum(&bytes), Err(Error::Checksum));
+        assert_eq!(verify_checksum(&bytes), Err(ChecksumAssertion));
     }
 
     #[test]
@@ -89,6 +89,6 @@ mod tests {
         //
         // This test makes sure nothing crashes by overflow
         let bytes = [0xFF, 0xFF, 0xFF, 0xFF, 0x01];
-        assert_eq!(verify_checksum(&bytes), Err(Error::Checksum));
+        assert_eq!(verify_checksum(&bytes), Err(ChecksumAssertion));
     }
 }

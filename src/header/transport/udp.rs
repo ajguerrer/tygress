@@ -5,7 +5,7 @@
 
 use core::fmt;
 
-use crate::header::error::{Error, Result};
+use crate::header::error::HeaderTruncated;
 use crate::header::primitive::U16;
 use crate::header::utils::as_header;
 
@@ -23,27 +23,13 @@ pub struct Udp {
     src_port: U16,
     dst_port: U16,
     len: U16,
-    cks: U16,
+    checksum: U16,
 }
 
 impl Udp {
     #[inline]
-    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
-        let (header, payload) = match as_header!(Udp, bytes) {
-            Some(v) => v,
-            None => return Err(Error::Truncated),
-        };
-
-        if header.len() < 8 {
-            return Err(Error::Truncated);
-        }
-
-        if header.cks.get() != 0 {
-            // TODO: call verify_checksum on pseudo header and payload
-            todo!()
-        }
-
-        Ok((header, payload))
+    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8]), HeaderTruncated> {
+        as_header!(Udp, bytes)
     }
 
     // Returns the source port.
@@ -64,6 +50,12 @@ impl Udp {
     #[allow(clippy::len_without_is_empty)]
     pub const fn len(&self) -> u16 {
         self.len.get()
+    }
+
+    /// Returns the checksum of the UDP header. If unused, field will carry all zeros.
+    #[inline]
+    pub(crate) const fn _checksum(&self) -> u16 {
+        self.checksum.get()
     }
 }
 
@@ -87,6 +79,6 @@ mod tests {
     #[test]
     fn short_header() {
         let bytes = [0; 7];
-        assert_eq!(Udp::from_bytes(&bytes).unwrap_err(), Error::Truncated);
+        assert_eq!(Udp::from_bytes(&bytes).unwrap_err(), HeaderTruncated);
     }
 }

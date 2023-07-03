@@ -3,9 +3,13 @@
 //! [`EthernetII`] header with source and destination [`EtherAddr`]s and a [`EtherType`].
 use core::fmt;
 
-use crate::header::error::{Error, Result};
-use crate::header::primitive::U16;
-use crate::header::utils::{as_header, return_err};
+use crate::header::error::HeaderTruncated;
+use crate::header::primitive::{non_exhaustive_enum, U16};
+use crate::header::utils::as_header;
+
+// check len
+// check destination
+// check fields valid
 
 /// An EthernetII frame header. [Read more][RFC 1042]
 ///
@@ -25,15 +29,8 @@ impl EthernetII {
     /// Returns an immutable view of `bytes` as an EthernetII header followed by a payload or an
     /// error if the size or contents do not represent a valid EthernetII header.
     #[inline]
-    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
-        let (header, payload) = match as_header!(EthernetII, bytes) {
-            Some(v) => v,
-            None => return Err(Error::Truncated),
-        };
-
-        return_err!(header.ty.verify());
-
-        Ok((header, payload))
+    pub const fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8]), HeaderTruncated> {
+        as_header!(EthernetII, bytes)
     }
 
     /// Returns the source Ethernet address.
@@ -139,45 +136,17 @@ impl fmt::Display for EtherAddr {
     }
 }
 
+non_exhaustive_enum! {
 /// A list of Ethernet protocol parameters. [Read more][IANA]
 ///
 /// The protocol used in the payload of an Ethernet frame. A complete list is maintained by [IANA].
 ///
 /// [IANA]: https://www.iana.org/assignments/ieee-802-numbers/ieee-802-numbers.xhtml
-#[non_exhaustive]
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-#[repr(u16)]
-pub enum EtherType {
+pub enum EtherType(u16) {
     Ipv4 = 0x0800,
     Arp = 0x0806,
     Ipv6 = 0x86DD,
 }
-
-impl From<EtherType> for u16 {
-    #[inline]
-    fn from(val: EtherType) -> Self {
-        val as u16
-    }
-}
-
-impl TryFrom<u16> for EtherType {
-    type Error = Error;
-
-    #[inline]
-    fn try_from(value: u16) -> Result<Self> {
-        match value {
-            value if value == Self::Ipv4 as u16 => Ok(Self::Ipv4),
-            value if value == Self::Arp as u16 => Ok(Self::Arp),
-            value if value == Self::Ipv6 as u16 => Ok(Self::Ipv6),
-            _ => Err(Error::Unsupported),
-        }
-    }
-}
-
-impl fmt::Display for EtherType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self, f)
-    }
 }
 
 /// Representation of [`EtherType`] cast from a slice of bytes instead of constructed. It is assumed
@@ -188,35 +157,17 @@ impl fmt::Display for EtherType {
 pub(crate) struct EtherTypeRepr(U16);
 
 impl EtherTypeRepr {
-    const IPV4: EtherTypeRepr = EtherTypeRepr(U16::new(EtherType::Ipv4 as u16));
-    const ARP: EtherTypeRepr = EtherTypeRepr(U16::new(EtherType::Arp as u16));
-    const IPV6: EtherTypeRepr = EtherTypeRepr(U16::new(EtherType::Ipv6 as u16));
-
-    /// Check inner self for validity.
-    #[inline]
-    pub(crate) const fn verify(&self) -> Result<()> {
-        match *self {
-            Self::IPV4 | Self::ARP | Self::IPV6 => Ok(()),
-            _ => Err(Error::Unsupported),
-        }
-    }
-
     /// Get the underlying [`EtherType`].
     #[inline]
     pub(crate) const fn get(&self) -> EtherType {
-        match *self {
-            Self::IPV4 => EtherType::Ipv4,
-            Self::ARP => EtherType::Arp,
-            Self::IPV6 => EtherType::Ipv6,
-            _ => unreachable!(),
-        }
+        EtherType::new(self.0.get())
     }
 }
 
 impl From<EtherType> for EtherTypeRepr {
     #[inline]
     fn from(value: EtherType) -> Self {
-        EtherTypeRepr(U16::new(value as u16))
+        EtherTypeRepr(U16::new(value.get()))
     }
 }
 
@@ -227,19 +178,14 @@ mod tests {
     #[test]
     fn short_header() {
         let bytes = [0; 13];
-        assert_eq!(
-            EthernetII::from_bytes(&bytes).unwrap_err(),
-            Error::Truncated
-        );
+        assert_eq!(EthernetII::from_bytes(&bytes).unwrap_err(), HeaderTruncated);
     }
 
     #[test]
     fn invalid_ethertype() {
         let bytes = [0; 14];
-        assert_eq!(
-            EthernetII::from_bytes(&bytes).unwrap_err(),
-            Error::Unsupported
-        );
+        let (header, _) = EthernetII::from_bytes(&bytes).unwrap();
+        assert_eq!(header.ethertype(), EtherType::Unknown(0));
     }
 
     #[test]

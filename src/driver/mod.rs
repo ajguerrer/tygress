@@ -15,9 +15,10 @@ use core::task::{Context, Poll};
 use core::{mem, panic};
 
 use crate::driver::waker::NoopWaker;
+use crate::header::checksum::verify_checksum;
+use crate::header::error::HeaderTruncated;
 use crate::header::internet::{IpVersion, Ipv4};
 use crate::header::link::{EtherType, EthernetII};
-use crate::header::Result;
 use crate::netdev::{Event, HardwareType, NetDev};
 
 #[derive(Debug)]
@@ -83,34 +84,40 @@ where
 
     fn dispatch(&self) {}
 
-    fn process(&self, bytes: &[u8]) -> Result<()> {
+    fn process(&self, bytes: &[u8]) -> Result<(), HeaderTruncated> {
         match self.netdev.hw_type() {
             HardwareType::EthernetII => {
                 let (header, bytes) = EthernetII::from_bytes(bytes)?;
                 self.process_ethernet(header, bytes)
             }
-            HardwareType::Opaque => match IpVersion::from_bytes(bytes)? {
-                IpVersion::Ipv4 => {
-                    let (header, options, bytes) = Ipv4::from_bytes(bytes)?;
-                    self.process_ipv4(header, options, bytes)
+
+            HardwareType::Opaque => match bytes.first().cloned().map(IpVersion::from) {
+                Some(IpVersion::Ipv4) => {
+                    let (header, bytes) = Ipv4::from_bytes(bytes)?;
+                    if verify_checksum(&bytes[..header.header_len()]).is_err() {
+                        return Ok(());
+                    }
+                    self.process_ipv4(&header, bytes)
                 }
-                IpVersion::Ipv6 => todo!(),
+                Some(IpVersion::Ipv6) => todo!(),
+                _ => Ok(()),
             },
         }
     }
 
-    fn process_ethernet(&self, header: &EthernetII, bytes: &[u8]) -> Result<()> {
+    fn process_ethernet(&self, header: &EthernetII, bytes: &[u8]) -> Result<(), HeaderTruncated> {
         match header.ethertype() {
             EtherType::Ipv4 => {
-                let (header, options, bytes) = Ipv4::from_bytes(bytes)?;
-                self.process_ipv4(header, options, bytes)
+                let (header, bytes) = Ipv4::from_bytes(bytes)?;
+                self.process_ipv4(&header, bytes)
             }
             EtherType::Arp => todo!(),
             EtherType::Ipv6 => todo!(),
+            _ => Ok(()),
         }
     }
 
-    fn process_ipv4(&self, _header: &Ipv4, _options: &[u8], _bytes: &[u8]) -> Result<()> {
+    fn process_ipv4(&self, _header: &Ipv4, _bytes: &[u8]) -> Result<(), HeaderTruncated> {
         todo!()
     }
 }

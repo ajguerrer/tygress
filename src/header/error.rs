@@ -1,23 +1,28 @@
 use core::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum Error {
-    Truncated,
-    Unsupported,
-    Malformed,
-    Checksum,
-}
+pub struct HeaderTruncated;
 
-impl fmt::Display for Error {
+impl fmt::Display for HeaderTruncated {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::Truncated => write!(f, "truncated input buffer"),
-            Error::Unsupported => write!(f, "unsupported input parameter"),
-            Error::Malformed => write!(f, "malformed input parameter"),
-            Error::Checksum => write!(f, "checksum assertion error"),
-        }
+        write!(f, "not enough bytes to represent header")
     }
 }
 
-pub type Result<T> = core::result::Result<T, Error>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChecksumAssertion;
+
+impl fmt::Display for ChecksumAssertion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "checksum assertion failure")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValueToLarge;
+
+impl fmt::Display for ValueToLarge {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "value to large to represent as bitfield")
+    }
+}
