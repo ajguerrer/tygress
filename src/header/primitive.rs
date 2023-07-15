@@ -1,5 +1,3 @@
-use core::fmt;
-
 macro_rules! non_exhaustive_enum {
     (
         $( #[$enum_attr:meta] )*
@@ -53,9 +51,9 @@ macro_rules! non_exhaustive_enum {
             }
         }
 
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                fmt::Debug::fmt(&self, f)
+        impl core::fmt::Display for $name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                core::fmt::Debug::fmt(&self, f)
             }
         }
     };
@@ -96,8 +94,8 @@ macro_rules! primitive {
             }
         }
 
-        impl fmt::Display for $type_name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        impl core::fmt::Display for $type_name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 self.get().fmt(f)
             }
         }

@@ -6,4 +6,6 @@
 //! [RFC 1122]: https://tools.ietf.org/html/rfc1122#section-2
 
 mod ethernet;
+mod ieee802154;
 pub use ethernet::*;
+pub use ieee802154::*;
