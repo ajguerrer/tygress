@@ -8,14 +8,11 @@ fn main() {
 
     const INCLUDE: &str = r#"
 #include <net/if.h>
+#include <netpacket/packet.h>
 #include <sys/ioctl.h>
 #include <asm-generic/ioctl.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
-#include <linux/if_ether.h>
-#include <linux/if_packet.h>
     "#;
 
     #[cfg(not(feature = "overwrite"))]

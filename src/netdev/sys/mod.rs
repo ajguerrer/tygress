@@ -1,143 +1,112 @@
 #![allow(unsafe_code)]
-#![allow(non_camel_case_types, non_snake_case, deref_nullptr)]
 
+use core::{mem, time::Duration};
 use std::io;
-use std::mem;
-use std::os::raw::{c_char, c_short, c_ulong, c_ushort};
-use std::time::Duration;
 
-use rustix::fd::{AsFd, AsRawFd};
-use rustix::io::{PollFd, PollFlags};
-use rustix::net::AddressFamily;
+use rustix::{
+    event::{PollFd, PollFlags},
+    fd::{AsFd, AsRawFd},
+    ioctl::{BadOpcode, Setter, WriteOpcode},
+};
+
+use crate::netdev::sys::ifreq_ioctl::IfreqGetter;
 
 use super::Event;
-use super::HardwareType;
 
-#[cfg(all(feature = "bindgen", not(feature = "overwrite")))]
-include!(concat!(env!("OUT_DIR"), "/sys.rs"));
+mod ifreq_ioctl;
 
-#[cfg(any(
-    not(feature = "bindgen"),
-    all(feature = "bindgen", feature = "overwrite")
-))]
-include!("sys.rs");
-
-pub fn ifreq_name(name: &str) -> [c_char; IF_NAMESIZE as usize] {
-    let mut ifreq_name = [b'\0' as i8; IF_NAMESIZE as usize];
+pub fn ifreq_name(name: &str) -> [libc::c_char; libc::IFNAMSIZ] {
+    let mut ifreq_name = [b'\0' as i8; libc::IFNAMSIZ];
     for (index, byte) in name
         .as_bytes()
         .iter()
         // last byte must be '\0'
-        .take(IF_NAMESIZE as usize - 1)
+        .take(libc::IFNAMSIZ - 1)
         .enumerate()
     {
-        ifreq_name[index] = *byte as c_char;
+        ifreq_name[index] = *byte as libc::c_char;
     }
     ifreq_name
 }
 
+pub fn htons(hostshort: libc::c_ushort) -> libc::c_ushort {
+    hostshort.to_be()
+}
+
 pub fn ioctl_tunsetiff<Fd: AsFd>(
     fd: Fd,
-    hw_type: HardwareType,
-    ifreq_name: [c_char; IF_NAMESIZE as usize],
+    ifru_flags: libc::c_int,
+    ifreq_name: [libc::c_char; libc::IFNAMSIZ],
 ) -> io::Result<()> {
-    let ifru_flags = match hw_type {
-        HardwareType::Opaque => IFF_TUN as c_short,
-        HardwareType::EthernetII => IFF_TAP as c_short,
-    } | IFF_NO_PI as c_short;
-
-    let ifreq = ifreq {
-        ifr_ifrn: ifreq__bindgen_ty_1 {
-            ifrn_name: ifreq_name,
+    let ifreq = libc::ifreq {
+        ifr_name: ifreq_name,
+        ifr_ifru: libc::__c_anonymous_ifr_ifru {
+            ifru_flags: ifru_flags as libc::c_short,
         },
-        ifr_ifru: ifreq__bindgen_ty_2 { ifru_flags },
     };
 
-    let result = unsafe {
-        ioctl(
-            fd.as_fd().as_raw_fd(),
-            linux_raw_sys::ioctl::TUNSETIFF as c_ulong,
-            &ifreq,
-        )
-    };
-    if result == -1 {
-        return Err(io::Error::last_os_error());
-    }
-
-    Ok(())
+    type Tunsetiff = Setter<WriteOpcode<b'T', 202, libc::c_int>, libc::ifreq>;
+    unsafe { Ok(rustix::ioctl::ioctl(fd, Tunsetiff::new(ifreq))?) }
 }
 
 pub fn ioctl_siocgifmtu<Fd: AsFd>(
     fd: Fd,
-    ifreq_name: [c_char; IF_NAMESIZE as usize],
+    ifreq_name: [libc::c_char; libc::IFNAMSIZ],
 ) -> io::Result<usize> {
-    let mut ifreq = ifreq {
-        ifr_ifrn: ifreq__bindgen_ty_1 {
-            ifrn_name: ifreq_name,
-        },
-        ifr_ifru: ifreq__bindgen_ty_2 { ifru_mtu: 0 },
+    let mut ifreq = libc::ifreq {
+        ifr_name: ifreq_name,
+        ifr_ifru: libc::__c_anonymous_ifr_ifru { ifru_mtu: 0 },
     };
 
-    let result = unsafe { ioctl(fd.as_fd().as_raw_fd(), SIOCGIFMTU as c_ulong, &mut ifreq) };
-    if result == -1 {
-        return Err(io::Error::last_os_error());
+    type Siocgifmtu<'a> = IfreqGetter<'a, BadOpcode<{ libc::SIOCGIFMTU as libc::c_uint }>>;
+    unsafe {
+        rustix::ioctl::ioctl(fd, Siocgifmtu::new(&mut ifreq))?;
+        Ok(ifreq.ifr_ifru.ifru_mtu as usize)
     }
-
-    Ok(unsafe { ifreq.ifr_ifru.ifru_mtu } as usize)
 }
 
 pub fn ioctl_siocgifindex<Fd: AsFd>(
     fd: Fd,
-    ifreq_name: [c_char; IF_NAMESIZE as usize],
+    ifreq_name: [libc::c_char; libc::IFNAMSIZ],
 ) -> io::Result<i32> {
-    let mut ifreq = ifreq {
-        ifr_ifrn: ifreq__bindgen_ty_1 {
-            ifrn_name: ifreq_name,
-        },
-        ifr_ifru: ifreq__bindgen_ty_2 { ifru_ivalue: 0 },
+    let mut ifreq = libc::ifreq {
+        ifr_name: ifreq_name,
+        ifr_ifru: libc::__c_anonymous_ifr_ifru { ifru_ifindex: 0 },
     };
 
-    let result = unsafe { ioctl(fd.as_fd().as_raw_fd(), SIOCGIFINDEX as c_ulong, &mut ifreq) };
-    if result == -1 {
-        return Err(io::Error::last_os_error());
+    type Siocgifindex<'a> = IfreqGetter<'a, BadOpcode<{ libc::SIOCGIFINDEX as libc::c_uint }>>;
+    unsafe {
+        rustix::ioctl::ioctl(fd, Siocgifindex::new(&mut ifreq))?;
+        Ok(ifreq.ifr_ifru.ifru_ifindex)
     }
-
-    Ok(unsafe { ifreq.ifr_ifru.ifru_ivalue })
 }
 
 pub fn bind_interface<Fd: AsFd>(
     fd: Fd,
-    ifreq_name: [c_char; IF_NAMESIZE as usize],
+    ifreq_name: [libc::c_char; libc::IFNAMSIZ],
+    protocol: libc::c_int,
 ) -> io::Result<()> {
     let index = ioctl_siocgifindex(&fd, ifreq_name)?;
 
-    let linkaddr = sockaddr_ll {
-        sll_family: AddressFamily::PACKET.as_raw(),
-        // Equivalent to htons(libc::ETH_P_ALL).
-        // To keep your sanity, make sure the integer width is 16 bits first!
-        sll_protocol: (ETH_P_ARP as c_ushort).to_be(),
+    let linkaddr = libc::sockaddr_ll {
+        sll_family: libc::AF_PACKET as libc::c_ushort,
+        sll_protocol: htons(protocol as libc::c_ushort),
         sll_ifindex: index,
-        sll_hatype: 1,
+        // rest is just default values
+        sll_hatype: 0,
         sll_pkttype: 0,
-        sll_halen: 6,
+        sll_halen: 0,
         sll_addr: [0; 8],
     };
 
-    let result = unsafe {
-        bind(
-            fd.as_fd().as_raw_fd(),
-            &linkaddr as *const sockaddr_ll as *const sockaddr,
-            mem::size_of::<sockaddr_ll>() as socklen_t,
-        )
-    };
-
-    if result == -1 {
+    let address = &linkaddr as *const libc::sockaddr_ll as *const libc::sockaddr;
+    let address_len = mem::size_of::<libc::sockaddr_ll>() as libc::socklen_t;
+    if unsafe { libc::bind(fd.as_fd().as_raw_fd(), address, address_len) } == -1 {
         return Err(io::Error::last_os_error());
     }
 
     Ok(())
 }
-
 pub fn poll<Fd: AsFd>(fd: Fd, interest: Event, timeout: Option<Duration>) -> io::Result<Event> {
     let mut flags = PollFlags::empty();
     if interest.is_readable() {
@@ -148,7 +117,7 @@ pub fn poll<Fd: AsFd>(fd: Fd, interest: Event, timeout: Option<Duration>) -> io:
     }
 
     let fds = &mut [PollFd::new(&fd, flags)];
-    rustix::io::poll(
+    rustix::event::poll(
         fds,
         match timeout {
             Some(timeout) => timeout.as_millis() as i32,

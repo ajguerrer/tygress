@@ -22,7 +22,7 @@
 ///   type. Because slice length is dynamic, this invariant cannot be checked at compile time, so
 ///   instead of panicking, an Error is returned.
 macro_rules! as_header {
-    ($header:ty, $bytes:ident) => {{
+    ($header:ty, $bytes:expr) => {{
         // check if header type is unaligned at compile time
         const _: () = if ::core::mem::align_of::<$header>() != 1 {
             panic!("{}", stringify!(align_of<$header> != 1))

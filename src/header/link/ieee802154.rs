@@ -1,18 +1,132 @@
-use crate::header::primitive::{non_exhaustive_enum, U16};
+use core::fmt;
+
+use crate::header::{
+    error::HeaderTruncated,
+    primitive::{non_exhaustive_enum, U16, U8},
+    utils::{as_header, split_at},
+};
+
+//  Notes:
+// Only need to support enough of this protocol to support 6LoWPAN/Thread including:
+// - Data frames
+// - Acknowledgment frames
+// - Beacon frames
+// - MAC Command frames (FFD)
+//   - Association Request command
+//   - Association Response command
+//   - Disassociation Notification command
+//   - Data Request command
+//   - PAN ID Conflict Notification command
+//   - Orphan Notification command
+//   - Beacon Request command
+//   - Coordinator Realignment command
+//
+// Do not need to support:
+// - MAC Security (optional)
+// - Frame Version 0b10 (IEEE 802.15.4 2020)
+//   - Enhanced frames
+//   - IEs
+
+const ACK_LENGTH: usize = 3;
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Ieee802154<'a> {
-    // Frame control  1/2
-    // Sequence number 0/1
+    header: &'a [u8],
+}
 
-    // Dest PAN ID 0/2
-    // Dest Addr 0/2/8
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParseIeee802154Error {
+    Truncated(HeaderTruncated),
+    Unsupported(HeaderUnsupported),
+}
 
-    // Src PAN ID 0/2
-    // Src Addr 0/2/8
+impl ParseIeee802154Error {
+    const fn truncated() -> Self {
+        Self::Truncated(HeaderTruncated)
+    }
 
-    // Aux security header var.
-    bytes: &'a [u8],
+    const fn unsupported_version(ver: FrameVersion) -> Self {
+        Self::Unsupported(HeaderUnsupported {
+            field: UnsupportedField::Version(ver),
+        })
+    }
+
+    const fn unsupported_type(ty: FrameType) -> Self {
+        Self::Unsupported(HeaderUnsupported {
+            field: UnsupportedField::Type(ty),
+        })
+    }
+}
+
+impl fmt::Display for ParseIeee802154Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseIeee802154Error::Truncated(err) => err.fmt(f),
+            ParseIeee802154Error::Unsupported(err) => err.fmt(f),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeaderUnsupported {
+    field: UnsupportedField,
+}
+
+impl fmt::Display for HeaderUnsupported {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.field {
+            UnsupportedField::Version(ver) => write!(f, "{ver} is unsupported"),
+            UnsupportedField::Type(ty) => write!(f, "{ty} is unsupported"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+
+enum UnsupportedField {
+    Version(FrameVersion),
+    Type(FrameType),
+}
+
+impl<'a> Ieee802154<'a> {
+    pub const fn from_bytes(bytes: &'a [u8]) -> Result<(Self, &[u8]), ParseIeee802154Error> {
+        let (fc, _) = match as_header!(FrameControl, bytes) {
+            Ok(v) => v,
+            Err(e) => return Err(ParseIeee802154Error::Truncated(e)),
+        };
+
+        // In FrameVersion::Ieee802154, Sequence Number Suppression may be enabled. This will affect
+        // the header_len calculations below, so return unsupported.
+        match fc.frame_version() {
+            FrameVersion::Ieee802154_2003 | FrameVersion::Ieee802154_2006 => {}
+            ver => return Err(ParseIeee802154Error::unsupported_version(ver)),
+        };
+
+        // Check for FrameTypes in Ieee802154_2006, rest are unsupported.
+        match fc.frame_type() {
+            FrameType::Beacon | FrameType::Data | FrameType::Ack | FrameType::MacCmd => {}
+            ty => return Err(ParseIeee802154Error::unsupported_type(ty)),
+        }
+
+        let header_len = if matches!(fc.frame_type(), FrameType::Ack) {
+            ACK_LENGTH
+        } else if fc.security_enabled() {
+            let sc_index = ACK_LENGTH + fc.addressing_len() + 1;
+            if bytes.len() >= sc_index {
+                let sc = SecurityControl(U8([bytes[sc_index]; 1]));
+                ACK_LENGTH + fc.addressing_len() + sc.security_len()
+            } else {
+                return Err(ParseIeee802154Error::truncated());
+            }
+        } else {
+            ACK_LENGTH + fc.addressing_len()
+        };
+
+        match split_at(bytes, header_len) {
+            Some((header, payload)) => Ok((Self { header }, payload)),
+            None => Err(ParseIeee802154Error::truncated()),
+        }
+    }
 }
 
 /// ```text
@@ -110,6 +224,10 @@ impl FrameControl {
             ((self.0.get() & Self::SRC_ADDRESSING_MASK) >> Self::SRC_ADDRESSING_SHIFT) as u8,
         )
     }
+
+    pub(crate) const fn addressing_len(&self) -> usize {
+        todo!()
+    }
 }
 
 non_exhaustive_enum! {
@@ -138,4 +256,13 @@ pub enum FrameVersion(u8) {
     Ieee802154_2006 = 0b01,
     Ieee802154 = 0b10,
 }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
+struct SecurityControl(U8);
+
+impl SecurityControl {
+    pub(crate) const fn security_len(&self) -> usize {
+        todo!()
+    }
 }

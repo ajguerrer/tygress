@@ -3,9 +3,10 @@
 use std::io;
 use std::time::Duration;
 
-use rustix::io::OwnedFd;
+use rustix::fd::OwnedFd;
 use rustix::net::{
-    recv, send, socket_with, AddressFamily, Protocol, RecvFlags, SendFlags, SocketFlags, SocketType,
+    recv, send, socket_with, AddressFamily, Protocol, RawProtocol, SendFlags, SocketFlags,
+    SocketType,
 };
 
 use super::{sys, Event};
@@ -26,19 +27,22 @@ impl PacketSocket {
     ///
     /// Requires superuser privileges or the `CAP_NET_RAW` capability.
     pub fn bind(name: &str, hw_type: HardwareType) -> io::Result<Self> {
-        let type_ = match hw_type {
-            HardwareType::Opaque => SocketType::DGRAM,
-            HardwareType::EthernetII => SocketType::RAW,
+        let (type_, protocol) = match hw_type {
+            HardwareType::Opaque => (SocketType::DGRAM, libc::ETH_P_ALL),
+            HardwareType::EthernetII => (SocketType::RAW, libc::ETH_P_ALL),
+            HardwareType::Ieee802154 => (SocketType::RAW, libc::ETH_P_IEEE802154),
         };
         let fd = socket_with(
             AddressFamily::PACKET,
             type_,
             SocketFlags::NONBLOCK,
-            Protocol::from_raw(0),
+            Some(Protocol::from_raw(
+                RawProtocol::new(sys::htons(protocol as libc::c_ushort) as u32).unwrap(),
+            )),
         )?;
 
         let ifreq_name = sys::ifreq_name(name);
-        sys::bind_interface(&fd, ifreq_name)?;
+        sys::bind_interface(&fd, ifreq_name, protocol)?;
 
         let mtu = sys::ioctl_siocgifmtu(&fd, ifreq_name)?;
 
@@ -55,7 +59,7 @@ impl NetDev for PacketSocket {
 
     #[inline]
     fn recv(&self, buf: &mut [u8]) -> io::Result<usize> {
-        recv(&self.fd, buf, RecvFlags::empty()).map_err(io::Error::from)
+        recv(&self.fd, buf, rustix::net::RecvFlags::empty()).map_err(io::Error::from)
     }
 
     #[inline]

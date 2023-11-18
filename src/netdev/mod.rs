@@ -75,6 +75,9 @@ pub enum HardwareType {
     /// Sends and receives EthernetII frames (Ip packets with
     /// [`EthernetII`][crate::header::link::EthernetII] header).
     EthernetII,
+    /// Sends and receives IEEE 802.15.4 frames (Ip packets with a
+    /// [`Ieee802154`][crate::header::link::Ieee802154] header).
+    Ieee802154,
 }
 
 /// A [`NetDev`] flag indicating readiness to perform I/O.

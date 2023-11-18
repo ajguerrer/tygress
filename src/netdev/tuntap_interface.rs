@@ -4,13 +4,13 @@ use std::fs::OpenOptions;
 use std::io;
 use std::time::Duration;
 
-use super::{sys, Event};
-use super::{HardwareType, NetDev};
 use rustix::fd::OwnedFd;
 use rustix::fs::{fcntl_setfl, OFlags};
 use rustix::io::{read, write};
-use rustix::net::{socket, AddressFamily, Protocol, SocketType};
+use rustix::net::{socket, AddressFamily, SocketType};
 
+use super::{sys, Event};
+use super::{HardwareType, NetDev};
 /// A virtual TUN (IP) or TAP (Ethernet) interface. [Read more][tuntap]
 ///
 ///  [tuntap]: https://www.kernel.org/doc/html/latest/networking/tuntap.html
@@ -36,9 +36,14 @@ impl TunTapInterface {
         fcntl_setfl(&fd, OFlags::NONBLOCK)?;
 
         let ifreq_name = sys::ifreq_name(name);
-        sys::ioctl_tunsetiff(&fd, hw_type, ifreq_name)?;
+        let ifru_flags = match hw_type {
+            HardwareType::Opaque => libc::IFF_TUN,
+            HardwareType::EthernetII => libc::IFF_TAP,
+            HardwareType::Ieee802154 => libc::IFF_TAP,
+        } | libc::IFF_NO_PI;
+        sys::ioctl_tunsetiff(&fd, ifru_flags, ifreq_name)?;
 
-        let socket = socket(AddressFamily::INET, SocketType::DGRAM, Protocol::default())?;
+        let socket = socket(AddressFamily::INET, SocketType::DGRAM, None)?;
         let mtu = sys::ioctl_siocgifmtu(&socket, ifreq_name)?;
 
         Ok(TunTapInterface { fd, mtu, hw_type })

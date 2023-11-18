@@ -12,13 +12,12 @@ mod waker;
 use core::fmt::Debug;
 use core::future::Future;
 use core::task::{Context, Poll};
-use core::{mem, panic};
 
 use crate::driver::waker::NoopWaker;
 use crate::header::checksum::verify_checksum;
 use crate::header::error::HeaderTruncated;
 use crate::header::internet::{IpVersion, Ipv4};
-use crate::header::link::{EtherType, EthernetII};
+use crate::header::link::{EtherType, EthernetII, Ieee802154};
 use crate::netdev::{Event, HardwareType, NetDev};
 
 #[derive(Debug)]
@@ -36,14 +35,6 @@ where
 {
     /// Creates a new asynchronous I/O driver around a [`NetDev`].
     pub fn new(netdev: T) -> Driver<T, MTU> {
-        let mtu = netdev.mtu();
-        let mtu = match netdev.hw_type() {
-            HardwareType::Opaque => mtu,
-            HardwareType::EthernetII => mtu + mem::size_of::<EthernetII>(),
-        };
-        if mtu > MTU {
-            panic!("netdev requires {} mtu", mtu);
-        }
         Driver {
             netdev,
             buffer: [0; MTU],
@@ -90,7 +81,10 @@ where
                 let (header, bytes) = EthernetII::from_bytes(bytes)?;
                 self.process_ethernet(header, bytes)
             }
-
+            HardwareType::Ieee802154 => {
+                let (header, bytes) = Ieee802154::from_bytes(bytes).unwrap();
+                self.process_ieee802154(&header, bytes)
+            }
             HardwareType::Opaque => match bytes.first().cloned().map(IpVersion::from) {
                 Some(IpVersion::Ipv4) => {
                     let (header, bytes) = Ipv4::from_bytes(bytes)?;
@@ -115,6 +109,14 @@ where
             EtherType::Ipv6 => todo!(),
             _ => Ok(()),
         }
+    }
+
+    fn process_ieee802154(
+        &self,
+        _header: &Ieee802154,
+        _bytes: &[u8],
+    ) -> Result<(), HeaderTruncated> {
+        todo!()
     }
 
     fn process_ipv4(&self, _header: &Ipv4, _bytes: &[u8]) -> Result<(), HeaderTruncated> {
