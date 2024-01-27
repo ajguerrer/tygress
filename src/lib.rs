@@ -16,6 +16,5 @@
 //! [net]: https://doc.rust-lang.org/std/net/
 //! [smoltcp]: https://docs.rs/smoltcp/latest/smoltcp/
 
-pub mod driver;
 pub mod header;
 pub mod netdev;
