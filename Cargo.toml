@@ -13,23 +13,23 @@ keywords = ["ip", "tcp", "udp", "ethernet", "network"]
 categories = ["embedded", "network-programming"]
 
 [dependencies]
-rustix = { version = "0.35.9", optional = true, features = ["fs", "net"] }
-linux-raw-sys = {version = "0.1", optional = true, features = ["ioctl"] }
+rustix = { version = "0.38.30", default-features = false, features = ["fs", "net", "event"], optional = true }
+libc = { version = "0.2.152", default-features = false, optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.3.6", default_features = false }
-
-[build-dependencies]
-bindgen = { version = "0.60.1", optional = true }
+criterion = { version = "0.5.1", default_features = false }
 
 [features]
 default = []
-netdev = ["std", "rustix", "linux-raw-sys"]
-overwrite = ["bindgen"]
+netdev = ["std", "rustix", "libc"]
 std = []
 
 [[example]]
-name = "playground"
+name = "tuntap_interface"
+required-features = ["netdev"]
+
+[[example]]
+name = "packet_socket"
 required-features = ["netdev"]
 
 [[bench]]

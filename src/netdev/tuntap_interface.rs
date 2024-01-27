@@ -9,7 +9,7 @@ use super::{HardwareType, NetDev};
 use rustix::fd::OwnedFd;
 use rustix::fs::{fcntl_setfl, OFlags};
 use rustix::io::{read, write};
-use rustix::net::{socket, AddressFamily, Protocol, SocketType};
+use rustix::net::{socket, AddressFamily, SocketType};
 
 /// A virtual TUN (IP) or TAP (Ethernet) interface. [Read more][tuntap]
 ///
@@ -38,7 +38,7 @@ impl TunTapInterface {
         let ifreq_name = sys::ifreq_name(name);
         sys::ioctl_tunsetiff(&fd, hw_type, ifreq_name)?;
 
-        let socket = socket(AddressFamily::INET, SocketType::DGRAM, Protocol::default())?;
+        let socket = socket(AddressFamily::INET, SocketType::DGRAM, None)?;
         let mtu = sys::ioctl_siocgifmtu(&socket, ifreq_name)?;
 
         Ok(TunTapInterface { fd, mtu, hw_type })

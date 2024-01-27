@@ -3,9 +3,9 @@
 use std::io;
 use std::time::Duration;
 
-use rustix::io::OwnedFd;
+use rustix::fd::OwnedFd;
 use rustix::net::{
-    recv, send, socket_with, AddressFamily, Protocol, RecvFlags, SendFlags, SocketFlags, SocketType,
+    eth, recv, send, socket_with, AddressFamily, RecvFlags, SendFlags, SocketFlags, SocketType,
 };
 
 use super::{sys, Event};
@@ -26,19 +26,20 @@ impl PacketSocket {
     ///
     /// Requires superuser privileges or the `CAP_NET_RAW` capability.
     pub fn bind(name: &str, hw_type: HardwareType) -> io::Result<Self> {
-        let type_ = match hw_type {
-            HardwareType::Opaque => SocketType::DGRAM,
-            HardwareType::EthernetII => SocketType::RAW,
+        let (type_, protocol) = match hw_type {
+            HardwareType::Opaque => (SocketType::DGRAM, eth::ALL),
+            HardwareType::EthernetII => (SocketType::RAW, eth::ALL),
+            HardwareType::Ieee802154 => (SocketType::RAW, eth::IEEE802154),
         };
         let fd = socket_with(
             AddressFamily::PACKET,
             type_,
             SocketFlags::NONBLOCK,
-            Protocol::from_raw(0),
+            Some(protocol),
         )?;
 
         let ifreq_name = sys::ifreq_name(name);
-        sys::bind_interface(&fd, ifreq_name)?;
+        sys::bind_interface(&fd, protocol, ifreq_name)?;
 
         let mtu = sys::ioctl_siocgifmtu(&fd, ifreq_name)?;
 

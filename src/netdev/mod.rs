@@ -42,8 +42,8 @@ pub trait NetDev {
     /// applicable.
     fn send(&self, buf: &[u8]) -> Result<usize, Self::Error>;
     /// Receives a single raw network frame and places it in `buf`. `buf` must be large enough to
-    /// hold the devices [`mtu`][NetDev] plus an additional [`link`][crate::header::link] header, if
-    /// applicable.
+    /// hold the devices [`mtu`][NetDev] plus an additional [`link`][crate::header::link] header,
+    /// depending on the configured [`HardwareType`].
     fn recv(&self, buf: &mut [u8]) -> Result<usize, Self::Error>;
     /// Checks I/O readiness by interest so that calls to [`send`][NetDev] or [`recv`][NetDev] do
     /// not to block. Called in the event loop of an async I/O [`Driver`][crate::driver::Driver]. If
@@ -53,7 +53,7 @@ pub trait NetDev {
     ///
     /// Indicates the maximum number of bytes that can be transmitted in an IP packet.
     ///
-    /// # Note
+    /// ## Note
     ///
     /// To stay consistent with the IETF standard, `mtu` *does not* factor in the
     /// [`link`][crate::header::link] header. [`send`][NetDev] and [`recv`][NetDev] should account
@@ -61,20 +61,20 @@ pub trait NetDev {
     ///
     /// `mtu` is calculated once at the beginning of the [NetDev]'s lifetime.
     fn mtu(&self) -> usize;
-    /// Returns network [`HardwareType`] device operates on. Note, there is no particular requirement on
-    /// which layers of the Internet Protocol suite a device must support. Rather, it is a function
-    /// of [`HardwareType`] and [`header`][crate::header] content.
+    /// Returns [`HardwareType`] device operates on.
     fn hw_type(&self) -> HardwareType;
 }
 
-/// The network hardware that a [`NetDev`] operates on.
+/// The hardware that a [`NetDev`] operates on. Indicates which link layer header will be
+/// present in calls to [`send`][NetDev::send] and [`recv`][NetDev::recv], if any.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum HardwareType {
-    /// Sends and receives IP packets without an attached link layer header.  
+    /// Sends and receives packets without any link layer header.  
     Opaque,
-    /// Sends and receives EthernetII frames (Ip packets with
-    /// [`EthernetII`][crate::header::link::EthernetII] header).
+    /// Sends and receives [`EthernetII`][crate::header::link::EthernetII] frames.
     EthernetII,
+    /// Sends and receives [`Ieee802154`][crate::header::link::Ieee802154] frames.
+    Ieee802154,
 }
 
 /// A [`NetDev`] flag indicating readiness to perform I/O.

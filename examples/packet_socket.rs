@@ -1,9 +1,10 @@
-use tygress::netdev::{Event, HardwareType, NetDev, TunTapInterface};
+use std::io;
 
-fn main() {
-    let name = "tun0";
-    let socket = TunTapInterface::bind(name, HardwareType::Opaque)
-        .unwrap_or_else(|_| panic!("failed to bind {}", name));
+use tygress::netdev::{Event, HardwareType, NetDev, PacketSocket};
+
+fn main() -> io::Result<()> {
+    let name = "enp8s0";
+    let socket = PacketSocket::bind(name, HardwareType::Opaque)?;
     println!("mtu: {}", socket.mtu());
     let mut buf = vec![0; socket.mtu()];
     loop {
